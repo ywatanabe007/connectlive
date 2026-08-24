@@ -14,6 +14,7 @@ export async function geocodeAddress(
           "User-Agent": "ConnectLive-PartnerPortal/1.0 (contact@connectlive.app)",
           "Accept-Language": "en",
         },
+        signal: AbortSignal.timeout(5000),
       }
     );
 
