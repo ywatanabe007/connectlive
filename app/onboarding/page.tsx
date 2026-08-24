@@ -46,7 +46,8 @@ const inputStyle = {
 
 export default function OnboardingPage() {
   const router = useRouter();
-  const { update } = useSession();
+  const session = useSession();
+  const update = session?.update;
 
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
