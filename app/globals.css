@@ -1,0 +1,40 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --bg: #F7F7F7;
+    --fg: #2A2A2A;
+    --card: #FFFFFF;
+    --border: #E8E8EA;
+    --muted: #75757A;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1F1F23;
+      --fg: #F7F7F8;
+      --card: #33333A;
+      --border: rgba(255, 255, 255, 0.10);
+    }
+  }
+
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font-family: "Instrument Sans", sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  input,
+  textarea,
+  select {
+    font-family: inherit;
+  }
+}
