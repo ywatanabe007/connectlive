@@ -9,9 +9,7 @@ function Logo() {
   return (
     <div className="text-center mb-8">
       <div className="inline-flex items-center gap-2.5 mb-4">
-        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#7C3AED] via-[#D946EF] to-[#F97316] flex items-center justify-center shadow-lg">
-          <span className="text-white font-bold text-sm tracking-tight">CL</span>
-        </div>
+        <img src="/logo.png" alt="ConnectLive" className="w-10 h-10 object-contain" />
         <span className="text-xl font-bold" style={{ color: "var(--fg)" }}>ConnectLive</span>
       </div>
       <h1 className="text-2xl font-bold" style={{ color: "var(--fg)" }}>Welcome back</h1>

@@ -39,9 +39,7 @@ export default async function VenueLayout({ children }: { children: React.ReactN
         {/* Logo */}
         <div className="p-5 border-b flex-shrink-0" style={{ borderColor: "var(--border)" }}>
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-[#7C3AED] via-[#D946EF] to-[#F97316] flex items-center justify-center shadow-sm flex-shrink-0">
-              <span className="text-white font-bold text-xs">CL</span>
-            </div>
+            <img src="/logo.png" alt="ConnectLive" className="w-8 h-8 object-contain flex-shrink-0" />
             <div>
               <p className="font-bold text-sm leading-tight" style={{ color: "var(--fg)" }}>
                 ConnectLive
