@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { geocodeAddress } from "@/lib/geo";
+import { syncVenueToMySQL } from "@/lib/mysql-sync";
 
 export async function GET() {
   const session = await auth();
@@ -70,6 +71,11 @@ export async function POST(req: Request) {
       data: { role: "VENUE_OWNER" },
     });
 
+    // Sync to mobile app MySQL (non-blocking — don't fail the request if sync fails)
+    syncVenueToMySQL({ ...venue, businessHours: venue.businessHours as any }).catch((err) =>
+      console.error("[mysql-sync] venue POST sync failed:", err)
+    );
+
     return NextResponse.json(venue, { status: 201 });
   } catch (err) {
     console.error("[venues/mine POST] Error:", err);
@@ -115,6 +121,18 @@ export async function PATCH(req: Request) {
       where: { id: venue.id },
       data: updateData,
     });
+
+    // Fetch incentives so the sync includes the latest set
+    const incentives = await db.incentive.findMany({
+      where: { venueId: venue.id },
+    });
+
+    // Sync to mobile app MySQL (non-blocking)
+    syncVenueToMySQL({
+      ...updated,
+      businessHours: updated.businessHours as any,
+      incentives: incentives as any,
+    }).catch((err) => console.error("[mysql-sync] venue PATCH sync failed:", err));
 
     return NextResponse.json(updated);
   } catch (err) {

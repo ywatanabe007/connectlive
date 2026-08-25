@@ -1,12 +1,22 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
+import { syncVenueToMySQL } from "@/lib/mysql-sync";
 
 async function getVenueForSession() {
   const session = await auth();
   if (!session?.user?.id) return { session: null, venue: null };
   const venue = await db.venue.findUnique({ where: { ownerId: session.user.id } });
   return { session, venue };
+}
+
+async function syncVenueWithIncentives(venueId: string, venue: any) {
+  const incentives = await db.incentive.findMany({ where: { venueId } });
+  syncVenueToMySQL({
+    ...venue,
+    businessHours: venue.businessHours as any,
+    incentives: incentives as any,
+  }).catch((err) => console.error("[mysql-sync] incentive sync failed:", err));
 }
 
 export async function GET() {
@@ -67,6 +77,9 @@ export async function POST(req: Request) {
         recurrence: recurrence || "ONE_TIME",
       },
     });
+
+    // Sync updated venue+incentives to mobile MySQL
+    syncVenueWithIncentives(venue.id, venue);
 
     return NextResponse.json(incentive, { status: 201 });
   } catch (err) {
