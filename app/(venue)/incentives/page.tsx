@@ -1,9 +1,16 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Plus, Zap, X, Trash2 } from "lucide-react";
+import { Plus, Zap, X, Trash2, Pencil, RefreshCw } from "lucide-react";
 import { StatusBadge } from "@/components/StatusBadge";
 import { INCENTIVE_CATEGORIES } from "@/lib/constants";
+
+const RECURRENCE_OPTIONS = [
+  { value: "ONE_TIME", label: "One-time" },
+  { value: "DAILY",    label: "Daily" },
+  { value: "WEEKLY",   label: "Weekly" },
+  { value: "MONTHLY",  label: "Monthly" },
+];
 
 type Incentive = {
   id: string;
@@ -18,6 +25,7 @@ type Incentive = {
   redemptionCount: number;
   status: string;
   groupFriendly: boolean;
+  recurrence: string;
   terms: string | null;
 };
 
@@ -29,25 +37,69 @@ const inputStyle = {
   color: "var(--fg)",
 };
 
+// Converts a Date/ISO string to the "datetime-local" input format (YYYY-MM-DDTHH:mm)
+function toDatetimeLocal(val: string | null | undefined): string {
+  if (!val) return "";
+  const d = new Date(val);
+  if (isNaN(d.getTime())) return "";
+  return d.toISOString().slice(0, 16);
+}
+
+type IncentiveFormState = {
+  title: string;
+  description: string;
+  teaserText: string;
+  category: string;
+  validTimes: string;
+  startAt: string;
+  endAt: string;
+  maxRedemptions: string;
+  terms: string;
+  groupFriendly: boolean;
+  recurrence: string;
+};
+
+const EMPTY_FORM: IncentiveFormState = {
+  title: "",
+  description: "",
+  teaserText: "",
+  category: "",
+  validTimes: "",
+  startAt: "",
+  endAt: "",
+  maxRedemptions: "",
+  terms: "",
+  groupFriendly: false,
+  recurrence: "ONE_TIME",
+};
+
 function IncentiveModal({
+  initial,
   onClose,
   onSaved,
 }: {
+  initial?: Incentive;
   onClose: () => void;
   onSaved: () => void;
 }) {
-  const [form, setForm] = useState({
-    title: "",
-    description: "",
-    teaserText: "",
-    category: "",
-    validTimes: "",
-    startAt: "",
-    endAt: "",
-    maxRedemptions: "",
-    terms: "",
-    groupFriendly: false,
-  });
+  const isEdit = !!initial;
+  const [form, setForm] = useState<IncentiveFormState>(
+    initial
+      ? {
+          title: initial.title,
+          description: initial.description,
+          teaserText: initial.teaserText ?? "",
+          category: initial.category,
+          validTimes: initial.validTimes ?? "",
+          startAt: toDatetimeLocal(initial.startAt),
+          endAt: toDatetimeLocal(initial.endAt),
+          maxRedemptions: initial.maxRedemptions ? String(initial.maxRedemptions) : "",
+          terms: initial.terms ?? "",
+          groupFriendly: initial.groupFriendly,
+          recurrence: initial.recurrence ?? "ONE_TIME",
+        }
+      : EMPTY_FORM
+  );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -56,8 +108,11 @@ function IncentiveModal({
     setLoading(true);
     setError("");
 
-    const res = await fetch("/api/incentives", {
-      method: "POST",
+    const url = isEdit ? `/api/incentives/${initial!.id}` : "/api/incentives";
+    const method = isEdit ? "PATCH" : "POST";
+
+    const res = await fetch(url, {
+      method,
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         ...form,
@@ -70,7 +125,7 @@ function IncentiveModal({
 
     if (!res.ok) {
       const data = await res.json();
-      setError(data.error || "Failed to create incentive.");
+      setError(data.error || "Something went wrong.");
       setLoading(false);
       return;
     }
@@ -89,7 +144,7 @@ function IncentiveModal({
           style={{ borderColor: "var(--border)" }}
         >
           <h2 className="font-bold text-lg" style={{ color: "var(--fg)" }}>
-            New Incentive
+            {isEdit ? "Edit Incentive" : "New Incentive"}
           </h2>
           <button onClick={onClose} className="p-1 rounded-lg hover:opacity-70 transition-opacity">
             <X className="w-5 h-5" style={{ color: "var(--muted)" }} />
@@ -171,20 +226,37 @@ function IncentiveModal({
             </div>
             <div>
               <label className="block text-sm font-medium mb-1.5" style={{ color: "var(--fg)" }}>
-                Valid times{" "}
-                <span className="text-xs font-normal" style={{ color: "var(--muted)" }}>
-                  (optional)
-                </span>
+                Recurrence <span className="text-red-500">*</span>
               </label>
-              <input
-                type="text"
-                value={form.validTimes}
-                onChange={(e) => setForm({ ...form, validTimes: e.target.value })}
-                placeholder="Mon–Fri 3pm–6pm"
+              <select
+                value={form.recurrence}
+                onChange={(e) => setForm({ ...form, recurrence: e.target.value })}
+                required
                 className={inputCls}
                 style={inputStyle}
-              />
+              >
+                {RECURRENCE_OPTIONS.map((r) => (
+                  <option key={r.value} value={r.value}>{r.label}</option>
+                ))}
+              </select>
             </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-1.5" style={{ color: "var(--fg)" }}>
+              Valid times{" "}
+              <span className="text-xs font-normal" style={{ color: "var(--muted)" }}>
+                (optional, e.g. Mon–Fri 3pm–6pm)
+              </span>
+            </label>
+            <input
+              type="text"
+              value={form.validTimes}
+              onChange={(e) => setForm({ ...form, validTimes: e.target.value })}
+              placeholder="Mon–Fri 3pm–6pm"
+              className={inputCls}
+              style={inputStyle}
+            />
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -278,7 +350,7 @@ function IncentiveModal({
               disabled={loading}
               className="flex-1 py-2.5 px-4 rounded-xl font-semibold text-white bg-gradient-to-r from-purple-600 to-fuchsia-500 hover:opacity-90 transition-all shadow-md disabled:opacity-50"
             >
-              {loading ? "Creating…" : "Create Incentive"}
+              {loading ? (isEdit ? "Saving…" : "Creating…") : (isEdit ? "Save changes" : "Create Incentive")}
             </button>
           </div>
         </form>
@@ -287,10 +359,18 @@ function IncentiveModal({
   );
 }
 
+const RECURRENCE_LABEL: Record<string, string> = {
+  ONE_TIME: "One-time",
+  DAILY: "Daily",
+  WEEKLY: "Weekly",
+  MONTHLY: "Monthly",
+};
+
 export default function IncentivesPage() {
   const [incentives, setIncentives] = useState<Incentive[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const [editingIncentive, setEditingIncentive] = useState<Incentive | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const fetchIncentives = useCallback(async () => {
@@ -397,6 +477,12 @@ export default function IncentivesPage() {
                       Group friendly
                     </span>
                   )}
+                  {incentive.recurrence && incentive.recurrence !== "ONE_TIME" && (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-700">
+                      <RefreshCw className="w-3 h-3" />
+                      {RECURRENCE_LABEL[incentive.recurrence] ?? incentive.recurrence}
+                    </span>
+                  )}
                 </div>
                 {incentive.teaserText && (
                   <p className="text-xs font-medium mt-0.5" style={{ color: "var(--muted)" }}>
@@ -429,6 +515,14 @@ export default function IncentivesPage() {
 
               <div className="flex items-center gap-2 flex-shrink-0">
                 <button
+                  onClick={() => setEditingIncentive(incentive)}
+                  className="p-1.5 rounded-lg hover:bg-purple-50 hover:text-purple-600 transition-all"
+                  style={{ color: "var(--muted)" }}
+                  title="Edit"
+                >
+                  <Pencil className="w-4 h-4" />
+                </button>
+                <button
                   onClick={() => handleToggleStatus(incentive)}
                   className="px-3 py-1.5 rounded-lg text-xs font-medium border hover:opacity-80 transition-opacity"
                   style={{ borderColor: "var(--border)", color: "var(--muted)" }}
@@ -439,6 +533,7 @@ export default function IncentivesPage() {
                   onClick={() => handleDelete(incentive.id)}
                   disabled={deletingId === incentive.id}
                   className="p-1.5 rounded-lg text-red-400 hover:bg-red-50 hover:text-red-600 transition-all disabled:opacity-50"
+                  title="Delete"
                 >
                   <Trash2 className="w-4 h-4" />
                 </button>
@@ -452,6 +547,14 @@ export default function IncentivesPage() {
         <IncentiveModal
           onClose={() => setShowModal(false)}
           onSaved={() => { setShowModal(false); fetchIncentives(); }}
+        />
+      )}
+
+      {editingIncentive && (
+        <IncentiveModal
+          initial={editingIncentive}
+          onClose={() => setEditingIncentive(null)}
+          onSaved={() => { setEditingIncentive(null); fetchIncentives(); }}
         />
       )}
     </div>

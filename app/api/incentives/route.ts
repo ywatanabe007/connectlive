@@ -34,7 +34,7 @@ export async function POST(req: Request) {
     const {
       title, description, teaserText, category,
       validTimes, startAt, endAt,
-      maxRedemptions, terms, groupFriendly,
+      maxRedemptions, terms, groupFriendly, recurrence,
     } = await req.json();
 
     if (!title || !description || !category || !startAt || !endAt) {
@@ -64,6 +64,7 @@ export async function POST(req: Request) {
         maxRedemptions: maxRedemptions ? parseInt(String(maxRedemptions)) : null,
         terms: terms?.trim() || null,
         groupFriendly: groupFriendly ?? false,
+        recurrence: recurrence || "ONE_TIME",
       },
     });
 

@@ -79,6 +79,7 @@ model Incentive {
   redemptionCount  Int             @default(0)
   status           IncentiveStatus @default(ACTIVE)
   groupFriendly    Boolean         @default(false)
+  recurrence       String          @default("ONE_TIME") // ONE_TIME | DAILY | WEEKLY | MONTHLY
   terms            String?
   redemptions      Redemption[]
   createdAt        DateTime        @default(now())
