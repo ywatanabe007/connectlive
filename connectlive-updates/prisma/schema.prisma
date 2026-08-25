@@ -1,0 +1,108 @@
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  USER
+  VENUE_OWNER
+  ADMIN
+}
+
+enum IncentiveStatus {
+  ACTIVE
+  PAUSED
+  EXPIRED
+}
+
+enum EventStatus {
+  UPCOMING
+  LIVE
+  ENDED
+  CANCELLED
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String?
+  role         Role     @default(USER)
+  venue        Venue?
+  createdAt    DateTime @default(now())
+}
+
+model Venue {
+  id                 String      @id @default(cuid())
+  ownerId            String      @unique
+  owner              User        @relation(fields: [ownerId], references: [id])
+  name               String
+  address            String
+  city               String
+  state              String
+  zip                String
+  lat                Float       @default(0)
+  lng                Float       @default(0)
+  type               String      // legacy field kept for compatibility
+  businessType       String?     // from BUSINESS_TYPES list (24 values)
+  experienceCategory String?     // from EXPERIENCE_CATEGORIES list (15 values)
+  phone              String?
+  website            String?
+  imageUrl           String?
+  description        String?
+  groupFriendly      Boolean     @default(false)
+  timeZone           String?
+  businessHours      Json?       // { monday: { open, close, closed }, ... }
+  active             Boolean     @default(true)
+  incentives         Incentive[]
+  events             Event[]
+  createdAt          DateTime    @default(now())
+}
+
+model Incentive {
+  id               String          @id @default(cuid())
+  venueId          String
+  venue            Venue           @relation(fields: [venueId], references: [id])
+  title            String
+  description      String
+  teaserText       String?         // short teaser shown in mobile app list view
+  category         String          // from INCENTIVE_CATEGORIES list (8 values)
+  validTimes       String?         // time restrictions e.g. "Mon-Fri 3pm-6pm"
+  startAt          DateTime
+  endAt            DateTime
+  maxRedemptions   Int?
+  redemptionCount  Int             @default(0)
+  status           IncentiveStatus @default(ACTIVE)
+  groupFriendly    Boolean         @default(false)
+  terms            String?
+  redemptions      Redemption[]
+  createdAt        DateTime        @default(now())
+}
+
+model Event {
+  id          String      @id @default(cuid())
+  venueId     String
+  venue       Venue       @relation(fields: [venueId], references: [id])
+  title       String
+  description String?
+  date        DateTime
+  startTime   String
+  endTime     String?
+  coverCharge Float?
+  imageUrl    String?
+  status      EventStatus @default(UPCOMING)
+  createdAt   DateTime    @default(now())
+}
+
+model Redemption {
+  id          String    @id @default(cuid())
+  incentiveId String
+  incentive   Incentive @relation(fields: [incentiveId], references: [id])
+  userId      String
+  redeemedAt  DateTime  @default(now())
+}

@@ -1,24 +1,34 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Save, Building2, MapPin, Globe, Phone } from "lucide-react";
-
-const VENUE_TYPES = [
-  "Restaurant", "Bar", "Nightclub", "Brewery", "Winery",
-  "Coffee Shop", "Live Music Venue", "Comedy Club", "Sports Bar", "Lounge", "Other",
-];
+import { Save, Building2, MapPin, Globe, Phone, Clock, Image } from "lucide-react";
+import {
+  BUSINESS_TYPES,
+  EXPERIENCE_CATEGORIES,
+  US_TIMEZONES,
+  DAYS_OF_WEEK,
+  DEFAULT_BUSINESS_HOURS,
+  type BusinessHours,
+  type DayOfWeek,
+} from "@/lib/constants";
 
 type VenueData = {
   id: string;
   name: string;
   type: string;
+  businessType: string | null;
+  experienceCategory: string | null;
   address: string;
   city: string;
   state: string;
   zip: string;
   phone: string | null;
   website: string | null;
+  imageUrl: string | null;
   description: string | null;
+  groupFriendly: boolean;
+  timeZone: string | null;
+  businessHours: BusinessHours | null;
   lat: number;
   lng: number;
 };
@@ -34,6 +44,7 @@ const inputStyle = {
 export default function SettingsPage() {
   const [venue, setVenue] = useState<VenueData | null>(null);
   const [form, setForm] = useState<Partial<VenueData>>({});
+  const [hours, setHours] = useState<BusinessHours>(DEFAULT_BUSINESS_HOURS);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -47,14 +58,22 @@ export default function SettingsPage() {
         setForm({
           name: data.name,
           type: data.type,
+          businessType: data.businessType ?? "",
+          experienceCategory: data.experienceCategory ?? "",
           address: data.address,
           city: data.city,
           state: data.state,
           zip: data.zip,
           phone: data.phone ?? "",
           website: data.website ?? "",
+          imageUrl: data.imageUrl ?? "",
           description: data.description ?? "",
+          groupFriendly: data.groupFriendly ?? false,
+          timeZone: data.timeZone ?? "",
         });
+        if (data.businessHours) {
+          setHours(data.businessHours as BusinessHours);
+        }
         setLoading(false);
       })
       .catch(() => setLoading(false));
@@ -69,7 +88,7 @@ export default function SettingsPage() {
     const res = await fetch("/api/venues/mine", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form),
+      body: JSON.stringify({ ...form, businessHours: hours }),
     });
 
     if (!res.ok) {
@@ -83,6 +102,13 @@ export default function SettingsPage() {
     }
 
     setSaving(false);
+  }
+
+  function updateHours(day: DayOfWeek, field: "open" | "close" | "closed", value: string | boolean) {
+    setHours((prev) => ({
+      ...prev,
+      [day]: { ...prev[day], [field]: value },
+    }));
   }
 
   if (loading) {
@@ -137,19 +163,38 @@ export default function SettingsPage() {
                 style={inputStyle}
               />
             </div>
-            <div>
-              <label className="block text-sm font-medium mb-1.5" style={{ color: "var(--fg)" }}>
-                Venue type
-              </label>
-              <select
-                value={form.type ?? ""}
-                onChange={(e) => setForm({ ...form, type: e.target.value })}
-                className={inputCls}
-                style={inputStyle}
-              >
-                {VENUE_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-              </select>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium mb-1.5" style={{ color: "var(--fg)" }}>
+                  Business type
+                </label>
+                <select
+                  value={form.businessType ?? ""}
+                  onChange={(e) => setForm({ ...form, businessType: e.target.value })}
+                  className={inputCls}
+                  style={inputStyle}
+                >
+                  <option value="">Select type…</option>
+                  {BUSINESS_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1.5" style={{ color: "var(--fg)" }}>
+                  Experience category
+                </label>
+                <select
+                  value={form.experienceCategory ?? ""}
+                  onChange={(e) => setForm({ ...form, experienceCategory: e.target.value })}
+                  className={inputCls}
+                  style={inputStyle}
+                >
+                  <option value="">Select category…</option>
+                  {EXPERIENCE_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
             </div>
+
             <div>
               <label className="block text-sm font-medium mb-1.5" style={{ color: "var(--fg)" }}>
                 Description
@@ -162,6 +207,50 @@ export default function SettingsPage() {
                 style={inputStyle}
               />
             </div>
+
+            {/* Group Friendly */}
+            <label className="flex items-center gap-3 cursor-pointer select-none">
+              <div
+                onClick={() => setForm({ ...form, groupFriendly: !form.groupFriendly })}
+                className={`relative w-10 h-6 rounded-full transition-colors ${form.groupFriendly ? "bg-purple-600" : "bg-gray-300"}`}
+              >
+                <span
+                  className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${form.groupFriendly ? "translate-x-4" : ""}`}
+                />
+              </div>
+              <span className="text-sm font-medium" style={{ color: "var(--fg)" }}>Group friendly</span>
+              <span className="text-xs" style={{ color: "var(--muted)" }}>Available for group bookings in the app</span>
+            </label>
+          </div>
+        </section>
+
+        {/* Image */}
+        <section
+          className="rounded-2xl border p-6 mb-4 shadow-sm"
+          style={{ background: "var(--card)", borderColor: "var(--border)" }}
+        >
+          <h2 className="font-semibold flex items-center gap-2 mb-5" style={{ color: "var(--fg)" }}>
+            <Image className="w-4 h-4 text-purple-600" />
+            Venue image
+          </h2>
+          <div>
+            <label className="block text-sm font-medium mb-1.5" style={{ color: "var(--fg)" }}>
+              Image URL
+            </label>
+            <input
+              type="url"
+              value={form.imageUrl ?? ""}
+              onChange={(e) => setForm({ ...form, imageUrl: e.target.value })}
+              placeholder="https://yourvenue.com/photo.jpg"
+              className={inputCls}
+              style={inputStyle}
+            />
+            {form.imageUrl && (
+              <div className="mt-3 rounded-xl overflow-hidden border" style={{ borderColor: "var(--border)" }}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={form.imageUrl} alt="Venue preview" className="w-full h-40 object-cover" />
+              </div>
+            )}
           </div>
         </section>
 
@@ -234,7 +323,7 @@ export default function SettingsPage() {
 
         {/* Contact */}
         <section
-          className="rounded-2xl border p-6 mb-6 shadow-sm"
+          className="rounded-2xl border p-6 mb-4 shadow-sm"
           style={{ background: "var(--card)", borderColor: "var(--border)" }}
         >
           <h2 className="font-semibold flex items-center gap-2 mb-5" style={{ color: "var(--fg)" }}>
@@ -264,6 +353,78 @@ export default function SettingsPage() {
                 style={inputStyle}
               />
             </div>
+          </div>
+        </section>
+
+        {/* Business Hours */}
+        <section
+          className="rounded-2xl border p-6 mb-4 shadow-sm"
+          style={{ background: "var(--card)", borderColor: "var(--border)" }}
+        >
+          <h2 className="font-semibold flex items-center gap-2 mb-2" style={{ color: "var(--fg)" }}>
+            <Clock className="w-4 h-4 text-purple-600" />
+            Business hours
+          </h2>
+
+          {/* Time Zone */}
+          <div className="mb-5">
+            <label className="block text-sm font-medium mb-1.5" style={{ color: "var(--fg)" }}>Time zone</label>
+            <select
+              value={form.timeZone ?? ""}
+              onChange={(e) => setForm({ ...form, timeZone: e.target.value })}
+              className={inputCls}
+              style={inputStyle}
+            >
+              <option value="">Select time zone…</option>
+              {US_TIMEZONES.map((tz) => (
+                <option key={tz.value} value={tz.value}>{tz.label}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="space-y-2">
+            {/* Header row */}
+            <div className="grid gap-3 text-xs font-medium pb-1" style={{ gridTemplateColumns: "90px 1fr 1fr 80px", color: "var(--muted)" }}>
+              <span>Day</span>
+              <span>Opens</span>
+              <span>Closes</span>
+              <span>Closed</span>
+            </div>
+            {DAYS_OF_WEEK.map((day) => {
+              const dayHours = hours[day];
+              return (
+                <div key={day} className="grid gap-3 items-center" style={{ gridTemplateColumns: "90px 1fr 1fr 80px" }}>
+                  <span className="text-sm capitalize font-medium" style={{ color: "var(--fg)" }}>
+                    {day.slice(0, 3).charAt(0).toUpperCase() + day.slice(1, 3)}
+                  </span>
+                  <input
+                    type="time"
+                    value={dayHours.open}
+                    disabled={dayHours.closed}
+                    onChange={(e) => updateHours(day, "open", e.target.value)}
+                    className={`${inputCls} disabled:opacity-40`}
+                    style={inputStyle}
+                  />
+                  <input
+                    type="time"
+                    value={dayHours.close}
+                    disabled={dayHours.closed}
+                    onChange={(e) => updateHours(day, "close", e.target.value)}
+                    className={`${inputCls} disabled:opacity-40`}
+                    style={inputStyle}
+                  />
+                  <label className="flex items-center gap-2 justify-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={dayHours.closed}
+                      onChange={(e) => updateHours(day, "closed", e.target.checked)}
+                      className="w-4 h-4 accent-purple-600"
+                    />
+                    <span className="text-xs" style={{ color: "var(--muted)" }}>Closed</span>
+                  </label>
+                </div>
+              );
+            })}
           </div>
         </section>
 

@@ -1,22 +1,23 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useRouter } from "next/navigation";
-import { Plus, Zap, X, Trash2, Pencil } from "lucide-react";
+import { Plus, Zap, X, Trash2 } from "lucide-react";
 import { StatusBadge } from "@/components/StatusBadge";
-
-const CATEGORIES = ["Happy Hour", "Food Deal", "Drink Special", "Entertainment", "Other"];
+import { INCENTIVE_CATEGORIES } from "@/lib/constants";
 
 type Incentive = {
   id: string;
   title: string;
   description: string;
+  teaserText: string | null;
   category: string;
+  validTimes: string | null;
   startAt: string;
   endAt: string;
   maxRedemptions: number | null;
   redemptionCount: number;
   status: string;
+  groupFriendly: boolean;
   terms: string | null;
 };
 
@@ -38,11 +39,14 @@ function IncentiveModal({
   const [form, setForm] = useState({
     title: "",
     description: "",
+    teaserText: "",
     category: "",
+    validTimes: "",
     startAt: "",
     endAt: "",
     maxRedemptions: "",
     terms: "",
+    groupFriendly: false,
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -57,6 +61,9 @@ function IncentiveModal({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         ...form,
+        teaserText: form.teaserText || null,
+        validTimes: form.validTimes || null,
+        terms: form.terms || null,
         maxRedemptions: form.maxRedemptions ? parseInt(form.maxRedemptions) : null,
       }),
     });
@@ -113,6 +120,24 @@ function IncentiveModal({
 
           <div>
             <label className="block text-sm font-medium mb-1.5" style={{ color: "var(--fg)" }}>
+              Teaser text{" "}
+              <span className="text-xs font-normal" style={{ color: "var(--muted)" }}>
+                (short preview shown in app list)
+              </span>
+            </label>
+            <input
+              type="text"
+              value={form.teaserText}
+              onChange={(e) => setForm({ ...form, teaserText: e.target.value })}
+              placeholder="50% off apps during happy hour"
+              maxLength={100}
+              className={inputCls}
+              style={inputStyle}
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-1.5" style={{ color: "var(--fg)" }}>
               Description <span className="text-red-500">*</span>
             </label>
             <textarea
@@ -126,22 +151,40 @@ function IncentiveModal({
             />
           </div>
 
-          <div>
-            <label className="block text-sm font-medium mb-1.5" style={{ color: "var(--fg)" }}>
-              Category <span className="text-red-500">*</span>
-            </label>
-            <select
-              value={form.category}
-              onChange={(e) => setForm({ ...form, category: e.target.value })}
-              required
-              className={inputCls}
-              style={inputStyle}
-            >
-              <option value="">Select category…</option>
-              {CATEGORIES.map((c) => (
-                <option key={c} value={c}>{c}</option>
-              ))}
-            </select>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium mb-1.5" style={{ color: "var(--fg)" }}>
+                Category <span className="text-red-500">*</span>
+              </label>
+              <select
+                value={form.category}
+                onChange={(e) => setForm({ ...form, category: e.target.value })}
+                required
+                className={inputCls}
+                style={inputStyle}
+              >
+                <option value="">Select…</option>
+                {INCENTIVE_CATEGORIES.map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1.5" style={{ color: "var(--fg)" }}>
+                Valid times{" "}
+                <span className="text-xs font-normal" style={{ color: "var(--muted)" }}>
+                  (optional)
+                </span>
+              </label>
+              <input
+                type="text"
+                value={form.validTimes}
+                onChange={(e) => setForm({ ...form, validTimes: e.target.value })}
+                placeholder="Mon–Fri 3pm–6pm"
+                className={inputCls}
+                style={inputStyle}
+              />
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -208,6 +251,19 @@ function IncentiveModal({
             />
           </div>
 
+          {/* Group Friendly */}
+          <label className="flex items-center gap-3 cursor-pointer select-none">
+            <div
+              onClick={() => setForm({ ...form, groupFriendly: !form.groupFriendly })}
+              className={`relative w-10 h-6 rounded-full transition-colors ${form.groupFriendly ? "bg-purple-600" : "bg-gray-300"}`}
+            >
+              <span
+                className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${form.groupFriendly ? "translate-x-4" : ""}`}
+              />
+            </div>
+            <span className="text-sm font-medium" style={{ color: "var(--fg)" }}>Group friendly</span>
+          </label>
+
           <div className="flex gap-3 pt-2">
             <button
               type="button"
@@ -232,7 +288,6 @@ function IncentiveModal({
 }
 
 export default function IncentivesPage() {
-  const router = useRouter();
   const [incentives, setIncentives] = useState<Incentive[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -337,7 +392,17 @@ export default function IncentivesPage() {
                       PAUSED
                     </span>
                   )}
+                  {incentive.groupFriendly && (
+                    <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-purple-100 text-purple-700">
+                      Group friendly
+                    </span>
+                  )}
                 </div>
+                {incentive.teaserText && (
+                  <p className="text-xs font-medium mt-0.5" style={{ color: "var(--muted)" }}>
+                    {incentive.teaserText}
+                  </p>
+                )}
                 <p className="text-sm mt-1 line-clamp-2" style={{ color: "var(--muted)" }}>
                   {incentive.description}
                 </p>
@@ -345,6 +410,11 @@ export default function IncentivesPage() {
                   <span className="px-2 py-0.5 rounded-full border" style={{ borderColor: "var(--border)" }}>
                     {incentive.category}
                   </span>
+                  {incentive.validTimes && (
+                    <span className="px-2 py-0.5 rounded-full border" style={{ borderColor: "var(--border)" }}>
+                      🕐 {incentive.validTimes}
+                    </span>
+                  )}
                   <span>
                     {new Date(incentive.startAt).toLocaleDateString()} →{" "}
                     {new Date(incentive.endAt).toLocaleDateString()}
