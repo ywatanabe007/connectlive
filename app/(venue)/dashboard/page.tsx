@@ -60,6 +60,7 @@ export default async function DashboardPage() {
             icon: Zap,
             iconBg: "bg-purple-100",
             iconColor: "text-purple-600",
+            href: "/incentives",
           },
           {
             label: "Total Redemptions",
@@ -67,6 +68,7 @@ export default async function DashboardPage() {
             icon: TrendingUp,
             iconBg: "bg-emerald-100",
             iconColor: "text-emerald-600",
+            href: "/incentives",
           },
           {
             label: "Upcoming Events",
@@ -74,11 +76,13 @@ export default async function DashboardPage() {
             icon: Calendar,
             iconBg: "bg-amber-100",
             iconColor: "text-amber-600",
+            href: "/events",
           },
-        ].map(({ label, value, icon: Icon, iconBg, iconColor }) => (
-          <div
+        ].map(({ label, value, icon: Icon, iconBg, iconColor, href }) => (
+          <Link
             key={label}
-            className="rounded-2xl p-6 border shadow-sm"
+            href={href}
+            className="rounded-2xl p-6 border shadow-sm hover:shadow-md hover:scale-[1.02] active:scale-[0.99] transition-all group"
             style={{ background: "var(--card)", borderColor: "var(--border)" }}
           >
             <div className="flex items-center justify-between mb-4">
@@ -89,10 +93,13 @@ export default async function DashboardPage() {
                 <Icon className={`w-4 h-4 ${iconColor}`} />
               </div>
             </div>
-            <p className="text-4xl font-bold" style={{ color: "var(--fg)" }}>
-              {value}
-            </p>
-          </div>
+            <div className="flex items-end justify-between">
+              <p className="text-4xl font-bold" style={{ color: "var(--fg)" }}>
+                {value}
+              </p>
+              <ChevronRight className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity" style={{ color: "var(--muted)" }} />
+            </div>
+          </Link>
         ))}
       </div>
 
