@@ -3,31 +3,29 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { Building2, FileText, CheckCircle2, MapPin } from "lucide-react";
-
-const VENUE_TYPES = [
-  "Restaurant",
-  "Bar",
-  "Nightclub",
-  "Brewery",
-  "Winery",
-  "Coffee Shop",
-  "Live Music Venue",
-  "Comedy Club",
-  "Sports Bar",
-  "Lounge",
-  "Other",
-];
+import { Building2, FileText, CheckCircle2, MapPin, Clock } from "lucide-react";
+import {
+  BUSINESS_TYPES,
+  EXPERIENCE_CATEGORIES,
+  US_TIMEZONES,
+  DEFAULT_BUSINESS_HOURS,
+  DAYS_OF_WEEK,
+  type BusinessHours,
+} from "@/lib/constants";
 
 type Step1 = {
   name: string;
-  type: string;
+  businessType: string;
+  experienceCategory: string;
   address: string;
   city: string;
   state: string;
   zip: string;
   phone: string;
   website: string;
+  imageUrl: string;
+  timeZone: string;
+  groupFriendly: boolean;
 };
 
 type Step2 = {
@@ -55,24 +53,37 @@ export default function OnboardingPage() {
 
   const [step1, setStep1] = useState<Step1>({
     name: "",
-    type: "",
+    businessType: "",
+    experienceCategory: "",
     address: "",
     city: "",
     state: "",
     zip: "",
     phone: "",
     website: "",
+    imageUrl: "",
+    timeZone: "",
+    groupFriendly: false,
   });
 
   const [step2, setStep2] = useState<Step2>({ description: "", unique: "" });
+  const [businessHours, setBusinessHours] = useState<BusinessHours>(DEFAULT_BUSINESS_HOURS);
 
-  function updateStep1(field: keyof Step1, value: string) {
+  function updateStep1<K extends keyof Step1>(field: K, value: Step1[K]) {
     setStep1((prev) => ({ ...prev, [field]: value }));
+  }
+
+  function updateHours(day: keyof BusinessHours, field: "open" | "close" | "closed", value: string | boolean) {
+    setBusinessHours((prev) => ({
+      ...prev,
+      [day]: { ...prev[day], [field]: value },
+    }));
   }
 
   function validateStep1() {
     if (!step1.name.trim()) return "Venue name is required.";
-    if (!step1.type) return "Venue type is required.";
+    if (!step1.businessType) return "Business type is required.";
+    if (!step1.experienceCategory) return "Experience category is required.";
     if (!step1.address.trim()) return "Street address is required.";
     if (!step1.city.trim()) return "City is required.";
     if (!step1.state.trim()) return "State is required.";
@@ -82,7 +93,6 @@ export default function OnboardingPage() {
 
   function validateStep2() {
     if (!step2.description.trim()) return "Description is required.";
-    if (!step2.unique.trim()) return "Please tell us what makes your venue unique.";
     return null;
   }
 
@@ -90,12 +100,18 @@ export default function OnboardingPage() {
     setLoading(true);
     setError("");
 
-    const description = `${step2.description}\n\nWhat makes us unique: ${step2.unique}`;
+    const description = step2.unique
+      ? `${step2.description}\n\nWhat makes us unique: ${step2.unique}`
+      : step2.description;
 
     const res = await fetch("/api/venues/mine", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...step1, description }),
+      body: JSON.stringify({
+        ...step1,
+        description,
+        businessHours,
+      }),
     });
 
     if (!res.ok) {
@@ -105,17 +121,16 @@ export default function OnboardingPage() {
       return;
     }
 
-    // Refresh JWT so new VENUE_OWNER role is reflected immediately
-    await update();
+    await update?.();
     router.push("/dashboard");
     router.refresh();
   }
 
-  const stepLabels = ["Venue details", "About your venue", "Confirm"];
+  const stepLabels = ["Venue details", "About & hours", "Confirm"];
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4" style={{ background: "var(--bg)" }}>
-      <div className="w-full max-w-xl">
+      <div className="w-full max-w-2xl">
         {/* Logo */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center gap-2.5 mb-4">
@@ -149,17 +164,12 @@ export default function OnboardingPage() {
                   >
                     {done ? <CheckCircle2 className="w-5 h-5" /> : s}
                   </div>
-                  <span
-                    className="text-xs mt-1 font-medium"
-                    style={{ color: active ? "var(--fg)" : "var(--muted)" }}
-                  >
+                  <span className="text-xs mt-1 font-medium" style={{ color: active ? "var(--fg)" : "var(--muted)" }}>
                     {label}
                   </span>
                 </div>
                 {s < 3 && (
-                  <div
-                    className={`w-16 h-0.5 mb-4 mx-2 ${done ? "bg-emerald-400" : "bg-neutral-200"}`}
-                  />
+                  <div className={`w-16 h-0.5 mb-4 mx-2 ${done ? "bg-emerald-400" : "bg-neutral-200"}`} />
                 )}
               </div>
             );
@@ -180,16 +190,14 @@ export default function OnboardingPage() {
           {/* ── Step 1: Venue details ── */}
           {step === 1 && (
             <div>
-              <h2
-                className="text-lg font-semibold flex items-center gap-2 mb-6"
-                style={{ color: "var(--fg)" }}
-              >
+              <h2 className="text-lg font-semibold flex items-center gap-2 mb-6" style={{ color: "var(--fg)" }}>
                 <Building2 className="w-5 h-5 text-purple-600" />
                 Venue details
               </h2>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="col-span-2">
+              <div className="space-y-4">
+                {/* Name */}
+                <div>
                   <label className="block text-sm font-medium mb-1.5" style={{ color: "var(--fg)" }}>
                     Venue name <span className="text-red-500">*</span>
                   </label>
@@ -203,24 +211,44 @@ export default function OnboardingPage() {
                   />
                 </div>
 
-                <div className="col-span-2">
-                  <label className="block text-sm font-medium mb-1.5" style={{ color: "var(--fg)" }}>
-                    Venue type <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    value={step1.type}
-                    onChange={(e) => updateStep1("type", e.target.value)}
-                    className={inputCls}
-                    style={inputStyle}
-                  >
-                    <option value="">Select a type…</option>
-                    {VENUE_TYPES.map((t) => (
-                      <option key={t} value={t}>{t}</option>
-                    ))}
-                  </select>
+                {/* Business Type + Experience Category */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-1.5" style={{ color: "var(--fg)" }}>
+                      Business type <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      value={step1.businessType}
+                      onChange={(e) => updateStep1("businessType", e.target.value)}
+                      className={inputCls}
+                      style={inputStyle}
+                    >
+                      <option value="">Select type…</option>
+                      {BUSINESS_TYPES.map((t) => (
+                        <option key={t} value={t}>{t}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1.5" style={{ color: "var(--fg)" }}>
+                      Experience category <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      value={step1.experienceCategory}
+                      onChange={(e) => updateStep1("experienceCategory", e.target.value)}
+                      className={inputCls}
+                      style={inputStyle}
+                    >
+                      <option value="">Select category…</option>
+                      {EXPERIENCE_CATEGORIES.map((c) => (
+                        <option key={c} value={c}>{c}</option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
 
-                <div className="col-span-2">
+                {/* Address */}
+                <div>
                   <label className="block text-sm font-medium mb-1.5" style={{ color: "var(--fg)" }}>
                     Street address <span className="text-red-500">*</span>
                   </label>
@@ -234,21 +262,20 @@ export default function OnboardingPage() {
                   />
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium mb-1.5" style={{ color: "var(--fg)" }}>
-                    City <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={step1.city}
-                    onChange={(e) => updateStep1("city", e.target.value)}
-                    placeholder="San Francisco"
-                    className={inputCls}
-                    style={inputStyle}
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium mb-1.5" style={{ color: "var(--fg)" }}>
+                      City <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={step1.city}
+                      onChange={(e) => updateStep1("city", e.target.value)}
+                      placeholder="San Francisco"
+                      className={inputCls}
+                      style={inputStyle}
+                    />
+                  </div>
                   <div>
                     <label className="block text-sm font-medium mb-1.5" style={{ color: "var(--fg)" }}>
                       State <span className="text-red-500">*</span>
@@ -279,32 +306,72 @@ export default function OnboardingPage() {
                   </div>
                 </div>
 
+                {/* Phone + Website */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-1.5" style={{ color: "var(--fg)" }}>Phone</label>
+                    <input
+                      type="tel"
+                      value={step1.phone}
+                      onChange={(e) => updateStep1("phone", e.target.value)}
+                      placeholder="(415) 555-0100"
+                      className={inputCls}
+                      style={inputStyle}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1.5" style={{ color: "var(--fg)" }}>Website URL</label>
+                    <input
+                      type="url"
+                      value={step1.website}
+                      onChange={(e) => updateStep1("website", e.target.value)}
+                      placeholder="https://yourvenue.com"
+                      className={inputCls}
+                      style={inputStyle}
+                    />
+                  </div>
+                </div>
+
+                {/* Image URL */}
                 <div>
-                  <label className="block text-sm font-medium mb-1.5" style={{ color: "var(--fg)" }}>
-                    Phone
-                  </label>
+                  <label className="block text-sm font-medium mb-1.5" style={{ color: "var(--fg)" }}>Venue image URL</label>
                   <input
-                    type="tel"
-                    value={step1.phone}
-                    onChange={(e) => updateStep1("phone", e.target.value)}
-                    placeholder="(415) 555-0100"
+                    type="url"
+                    value={step1.imageUrl}
+                    onChange={(e) => updateStep1("imageUrl", e.target.value)}
+                    placeholder="https://example.com/venue-photo.jpg"
                     className={inputCls}
                     style={inputStyle}
                   />
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium mb-1.5" style={{ color: "var(--fg)" }}>
-                    Website
-                  </label>
-                  <input
-                    type="url"
-                    value={step1.website}
-                    onChange={(e) => updateStep1("website", e.target.value)}
-                    placeholder="https://yourvenue.com"
-                    className={inputCls}
-                    style={inputStyle}
-                  />
+                {/* Timezone + Group Friendly */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-1.5" style={{ color: "var(--fg)" }}>Time zone</label>
+                    <select
+                      value={step1.timeZone}
+                      onChange={(e) => updateStep1("timeZone", e.target.value)}
+                      className={inputCls}
+                      style={inputStyle}
+                    >
+                      <option value="">Select time zone…</option>
+                      {US_TIMEZONES.map((tz) => (
+                        <option key={tz.value} value={tz.value}>{tz.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="flex flex-col justify-end">
+                    <label className="flex items-center gap-3 cursor-pointer">
+                      <div
+                        onClick={() => updateStep1("groupFriendly", !step1.groupFriendly)}
+                        className={`w-11 h-6 rounded-full transition-colors relative ${step1.groupFriendly ? "bg-purple-600" : "bg-neutral-300"}`}
+                      >
+                        <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${step1.groupFriendly ? "translate-x-5.5" : "translate-x-0.5"}`} />
+                      </div>
+                      <span className="text-sm font-medium" style={{ color: "var(--fg)" }}>Group friendly</span>
+                    </label>
+                  </div>
                 </div>
               </div>
 
@@ -322,48 +389,86 @@ export default function OnboardingPage() {
             </div>
           )}
 
-          {/* ── Step 2: About ── */}
+          {/* ── Step 2: About & Hours ── */}
           {step === 2 && (
             <div>
-              <h2
-                className="text-lg font-semibold flex items-center gap-2 mb-6"
-                style={{ color: "var(--fg)" }}
-              >
+              <h2 className="text-lg font-semibold flex items-center gap-2 mb-6" style={{ color: "var(--fg)" }}>
                 <FileText className="w-5 h-5 text-purple-600" />
                 About your venue
               </h2>
 
-              <div className="space-y-4">
+              <div className="space-y-4 mb-6">
                 <div>
                   <label className="block text-sm font-medium mb-1.5" style={{ color: "var(--fg)" }}>
                     Description <span className="text-red-500">*</span>
                   </label>
                   <textarea
-                    rows={4}
+                    rows={3}
                     value={step2.description}
                     onChange={(e) => setStep2({ ...step2, description: e.target.value })}
-                    placeholder="Describe your venue — the atmosphere, cuisine, entertainment, what makes it a great night out…"
+                    placeholder="Describe your venue — the atmosphere, cuisine, entertainment…"
                     className={`${inputCls} resize-none`}
                     style={inputStyle}
                   />
                 </div>
-
                 <div>
-                  <label className="block text-sm font-medium mb-1.5" style={{ color: "var(--fg)" }}>
-                    What makes your venue unique? <span className="text-red-500">*</span>
-                  </label>
+                  <label className="block text-sm font-medium mb-1.5" style={{ color: "var(--fg)" }}>What makes your venue unique?</label>
                   <textarea
-                    rows={3}
+                    rows={2}
                     value={step2.unique}
                     onChange={(e) => setStep2({ ...step2, unique: e.target.value })}
-                    placeholder="Award-winning cocktails, live jazz every Friday, best rooftop views in the city…"
+                    placeholder="Award-winning cocktails, live jazz every Friday…"
                     className={`${inputCls} resize-none`}
                     style={inputStyle}
                   />
                 </div>
               </div>
 
-              <div className="flex gap-3 mt-6">
+              {/* Business Hours */}
+              <h3 className="text-sm font-semibold flex items-center gap-2 mb-3" style={{ color: "var(--fg)" }}>
+                <Clock className="w-4 h-4 text-purple-600" />
+                Business hours
+              </h3>
+              <div className="space-y-2 mb-6">
+                {DAYS_OF_WEEK.map((day) => (
+                  <div key={day} className="flex items-center gap-3">
+                    <span className="w-24 text-sm capitalize font-medium" style={{ color: "var(--fg)" }}>{day}</span>
+                    <label className="flex items-center gap-1.5 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={!businessHours[day].closed}
+                        onChange={(e) => updateHours(day, "closed", !e.target.checked)}
+                        className="accent-purple-600"
+                      />
+                      <span className="text-xs" style={{ color: "var(--muted)" }}>Open</span>
+                    </label>
+                    {!businessHours[day].closed && (
+                      <>
+                        <input
+                          type="time"
+                          value={businessHours[day].open}
+                          onChange={(e) => updateHours(day, "open", e.target.value)}
+                          className="px-2 py-1 rounded-lg border text-xs"
+                          style={{ background: "var(--bg)", borderColor: "var(--border)", color: "var(--fg)" }}
+                        />
+                        <span className="text-xs" style={{ color: "var(--muted)" }}>to</span>
+                        <input
+                          type="time"
+                          value={businessHours[day].close}
+                          onChange={(e) => updateHours(day, "close", e.target.value)}
+                          className="px-2 py-1 rounded-lg border text-xs"
+                          style={{ background: "var(--bg)", borderColor: "var(--border)", color: "var(--fg)" }}
+                        />
+                      </>
+                    )}
+                    {businessHours[day].closed && (
+                      <span className="text-xs" style={{ color: "var(--muted)" }}>Closed</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex gap-3">
                 <button
                   onClick={() => { setError(""); setStep(1); }}
                   className="flex-1 py-2.5 px-4 rounded-xl font-semibold border hover:opacity-80 transition-opacity"
@@ -389,10 +494,7 @@ export default function OnboardingPage() {
           {/* ── Step 3: Confirm ── */}
           {step === 3 && (
             <div>
-              <h2
-                className="text-lg font-semibold flex items-center gap-2 mb-6"
-                style={{ color: "var(--fg)" }}
-              >
+              <h2 className="text-lg font-semibold flex items-center gap-2 mb-6" style={{ color: "var(--fg)" }}>
                 <MapPin className="w-5 h-5 text-purple-600" />
                 Confirm your details
               </h2>
@@ -403,22 +505,17 @@ export default function OnboardingPage() {
               >
                 <div>
                   <p className="font-bold text-lg" style={{ color: "var(--fg)" }}>{step1.name}</p>
-                  <p className="text-sm" style={{ color: "var(--muted)" }}>{step1.type}</p>
+                  <p className="text-sm" style={{ color: "var(--muted)" }}>{step1.businessType} · {step1.experienceCategory}</p>
                 </div>
                 <div className="text-sm" style={{ color: "var(--muted)" }}>
                   {step1.address}<br />
                   {step1.city}, {step1.state} {step1.zip}
                 </div>
-                {step1.phone && (
-                  <p className="text-sm" style={{ color: "var(--muted)" }}>{step1.phone}</p>
-                )}
-                {step1.website && (
-                  <p className="text-sm text-purple-600 break-all">{step1.website}</p>
-                )}
-                <div
-                  className="pt-3 border-t text-sm"
-                  style={{ borderColor: "var(--border)", color: "var(--fg)" }}
-                >
+                {step1.phone && <p className="text-sm" style={{ color: "var(--muted)" }}>{step1.phone}</p>}
+                {step1.website && <p className="text-sm text-purple-600 break-all">{step1.website}</p>}
+                {step1.timeZone && <p className="text-sm" style={{ color: "var(--muted)" }}>🕐 {step1.timeZone}</p>}
+                {step1.groupFriendly && <p className="text-sm text-emerald-600 font-medium">✓ Group friendly</p>}
+                <div className="pt-3 border-t text-sm" style={{ borderColor: "var(--border)", color: "var(--fg)" }}>
                   {step2.description}
                 </div>
               </div>

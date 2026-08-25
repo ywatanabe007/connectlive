@@ -31,8 +31,11 @@ export async function POST(req: Request) {
   if (!venue) return NextResponse.json({ error: "No venue found" }, { status: 404 });
 
   try {
-    const { title, description, category, startAt, endAt, maxRedemptions, terms } =
-      await req.json();
+    const {
+      title, description, teaserText, category,
+      validTimes, startAt, endAt,
+      maxRedemptions, terms, groupFriendly,
+    } = await req.json();
 
     if (!title || !description || !category || !startAt || !endAt) {
       return NextResponse.json({ error: "Missing required fields." }, { status: 400 });
@@ -53,11 +56,14 @@ export async function POST(req: Request) {
         venueId: venue.id,
         title: title.trim(),
         description: description.trim(),
+        teaserText: teaserText?.trim() || null,
         category,
+        validTimes: validTimes?.trim() || null,
         startAt: start,
         endAt: end,
         maxRedemptions: maxRedemptions ? parseInt(String(maxRedemptions)) : null,
         terms: terms?.trim() || null,
+        groupFriendly: groupFriendly ?? false,
       },
     });
 
