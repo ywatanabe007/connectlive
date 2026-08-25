@@ -25,7 +25,7 @@ function getPool(): mysql.Pool {
       user: process.env.MYSQL_USER,
       password: process.env.MYSQL_PASSWORD,
       database: process.env.MYSQL_DATABASE,
-      ssl: { rejectUnauthorized: true },
+      ssl: { rejectUnauthorized: false },
       waitForConnections: true,
       connectionLimit: 5,
       queueLimit: 0,
