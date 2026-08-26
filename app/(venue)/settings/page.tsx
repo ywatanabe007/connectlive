@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Save, Building2, MapPin, Globe, Phone, Clock, Image } from "lucide-react";
+import { Save, Building2, MapPin, Phone, Clock, Image, Upload, X } from "lucide-react";
 import {
   BUSINESS_TYPES,
   EXPERIENCE_CATEGORIES,
@@ -49,6 +49,8 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState("");
 
   useEffect(() => {
     fetch("/api/venues/mine")
@@ -102,6 +104,24 @@ export default function SettingsPage() {
     }
 
     setSaving(false);
+  }
+
+  async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    setUploadError("");
+    const fd = new FormData();
+    fd.append("file", file);
+    const res = await fetch("/api/upload", { method: "POST", body: fd });
+    const data = await res.json();
+    if (res.ok) {
+      setForm((prev) => ({ ...prev, imageUrl: data.url }));
+    } else {
+      setUploadError(data.error ?? "Upload failed");
+    }
+    setUploading(false);
+    e.target.value = "";
   }
 
   function updateHours(day: DayOfWeek, field: "open" | "close" | "closed", value: string | boolean) {
@@ -233,25 +253,52 @@ export default function SettingsPage() {
             <Image className="w-4 h-4 text-purple-600" />
             Venue image
           </h2>
-          <div>
-            <label className="block text-sm font-medium mb-1.5" style={{ color: "var(--fg)" }}>
-              Image URL
-            </label>
+
+          {/* Current image preview */}
+          {form.imageUrl && (
+            <div className="mb-4 rounded-xl overflow-hidden border relative group" style={{ borderColor: "var(--border)" }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={form.imageUrl} alt="Venue" className="w-full h-48 object-cover" />
+              <button
+                type="button"
+                onClick={() => setForm({ ...form, imageUrl: "" })}
+                className="absolute top-2 right-2 p-1.5 rounded-full bg-black/60 text-white opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/80"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
+
+          {/* Upload dropzone */}
+          <label className={`flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-xl cursor-pointer transition-colors ${uploading ? "opacity-60 cursor-wait" : "hover:border-purple-400 hover:bg-purple-50/20"}`} style={{ borderColor: "var(--border)" }}>
+            <div className="flex flex-col items-center gap-1.5 pointer-events-none">
+              {uploading ? (
+                <>
+                  <div className="w-6 h-6 border-2 border-purple-600 border-t-transparent rounded-full animate-spin" />
+                  <span className="text-sm font-medium text-purple-600">Uploading…</span>
+                </>
+              ) : (
+                <>
+                  <Upload className="w-6 h-6 text-purple-500" />
+                  <span className="text-sm font-medium text-purple-600">
+                    {form.imageUrl ? "Replace image" : "Upload venue image"}
+                  </span>
+                  <span className="text-xs" style={{ color: "var(--muted)" }}>PNG, JPG, WebP · max 5 MB</span>
+                </>
+              )}
+            </div>
             <input
-              type="url"
-              value={form.imageUrl ?? ""}
-              onChange={(e) => setForm({ ...form, imageUrl: e.target.value })}
-              placeholder="https://yourvenue.com/photo.jpg"
-              className={inputCls}
-              style={inputStyle}
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/gif"
+              className="hidden"
+              onChange={handleImageUpload}
+              disabled={uploading}
             />
-            {form.imageUrl && (
-              <div className="mt-3 rounded-xl overflow-hidden border" style={{ borderColor: "var(--border)" }}>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={form.imageUrl} alt="Venue preview" className="w-full h-40 object-cover" />
-              </div>
-            )}
-          </div>
+          </label>
+
+          {uploadError && (
+            <p className="mt-2 text-sm text-red-600">{uploadError}</p>
+          )}
         </section>
 
         {/* Location */}
