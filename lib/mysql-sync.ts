@@ -131,8 +131,8 @@ function buildIncentivesJson(incentives: PortalIncentive[]): object[] {
     .map((i, index) => ({
       id: i.id,
       title: i.title,
-      description: i.description,
-      teaser: i.teaserText ?? null,
+      incentives: i.description,
+      incentive_hint: i.teaserText ?? null,
       type: i.category,
       schedule: i.validTimes ?? null,
       recurrence: i.recurrence,
@@ -175,7 +175,7 @@ export async function syncVenueToMySQL(
 
   // Build a plain text incentives summary for the legacy `incentives` text column
   const incentivesSummary = incentivesJson
-    .map((i: any) => `${i.title}${i.schedule ? ` (${i.schedule})` : ""}`)
+    .map((i: any) => `${i.incentives}${i.schedule ? ` (${i.schedule})` : ""}`)
     .join("; ") || null;
 
   const row = {
