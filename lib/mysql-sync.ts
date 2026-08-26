@@ -18,11 +18,10 @@ import type { BusinessHours } from "@/lib/constants";
 let pool: mysql.Pool | null = null;
 
 function getSslConfig(): object {
-  // If a CA cert is provided as a base64 env var, use it for proper verification.
-  // Otherwise fall back to disabling verification (DigitalOcean self-signed chain).
   if (process.env.MYSQL_CA_CERT) {
     return {
       ca: Buffer.from(process.env.MYSQL_CA_CERT, "base64").toString("utf8"),
+      rejectUnauthorized: false,
     };
   }
   return { rejectUnauthorized: false };
