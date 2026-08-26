@@ -1,9 +1,15 @@
-// DigitalOcean managed MySQL uses a self-signed certificate chain.
-process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
-
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import mysql from "mysql2/promise";
+
+function getSslConfig(): object {
+  if (process.env.MYSQL_CA_CERT) {
+    return {
+      ca: Buffer.from(process.env.MYSQL_CA_CERT, "base64").toString("utf8"),
+    };
+  }
+  return { rejectUnauthorized: false };
+}
 
 export async function GET() {
   const session = await auth();
@@ -18,6 +24,7 @@ export async function GET() {
     password: process.env.MYSQL_PASSWORD ? "***set***" : "NOT SET",
     database: process.env.MYSQL_DATABASE,
     table: process.env.MYSQL_VENUE_TABLE,
+    caProvided: !!process.env.MYSQL_CA_CERT,
   };
 
   // Check env vars first
@@ -36,8 +43,8 @@ export async function GET() {
       user: process.env.MYSQL_USER,
       password: process.env.MYSQL_PASSWORD,
       database: process.env.MYSQL_DATABASE,
-      ssl: {},
-      connectTimeout: 8000,
+      ssl: getSslConfig(),
+      connectTimeout: 10000,
     });
 
     // Test connection + check table exists

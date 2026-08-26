@@ -9,10 +9,6 @@
  * — confirm the exact table name with the mobile dev team.
  */
 
-// DigitalOcean managed MySQL uses a self-signed certificate chain.
-// Set this before mysql2 initializes its TLS socket.
-process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
-
 import mysql from "mysql2/promise";
 import type { BusinessHours } from "@/lib/constants";
 
@@ -20,6 +16,17 @@ import type { BusinessHours } from "@/lib/constants";
 // Connection pool (re-used across requests in the same serverless container)
 // ---------------------------------------------------------------------------
 let pool: mysql.Pool | null = null;
+
+function getSslConfig(): object {
+  // If a CA cert is provided as a base64 env var, use it for proper verification.
+  // Otherwise fall back to disabling verification (DigitalOcean self-signed chain).
+  if (process.env.MYSQL_CA_CERT) {
+    return {
+      ca: Buffer.from(process.env.MYSQL_CA_CERT, "base64").toString("utf8"),
+    };
+  }
+  return { rejectUnauthorized: false };
+}
 
 function getPool(): mysql.Pool {
   if (!pool) {
@@ -29,7 +36,7 @@ function getPool(): mysql.Pool {
       user: process.env.MYSQL_USER,
       password: process.env.MYSQL_PASSWORD,
       database: process.env.MYSQL_DATABASE,
-      ssl: {},
+      ssl: getSslConfig(),
       waitForConnections: true,
       connectionLimit: 5,
       queueLimit: 0,
