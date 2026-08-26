@@ -1,129 +1,95 @@
-import { auth } from "@/auth";
+import { requireAdmin } from "@/lib/admin";
 import { db } from "@/lib/db";
-import { redirect } from "next/navigation";
-import { Users, Building2, Zap, Calendar } from "lucide-react";
+import { Building2, Tag, BarChart2, Users } from "lucide-react";
+import Link from "next/link";
 
-export const dynamic = "force-dynamic";
+export default async function AdminOverviewPage() {
+  await requireAdmin();
 
-export default async function AdminPage() {
-  const session = await auth();
-  const role = (session?.user as { role?: string })?.role;
-  if (!session || role !== "ADMIN") redirect("/login");
-
-  const [userCount, venueCount, incentiveCount, eventCount] = await Promise.all([
-    db.user.count(),
-    db.venue.count(),
-    db.incentive.count(),
-    db.event.count(),
-  ]);
-
-  const recentVenues = await db.venue.findMany({
-    take: 10,
-    orderBy: { createdAt: "desc" },
-    include: {
-      owner: { select: { email: true, name: true } },
-      _count: { select: { incentives: true, events: true } },
-    },
-  });
+  const [venueCount, userCount, incentiveCount, redemptionCount, recentVenues] =
+    await Promise.all([
+      db.venue.count(),
+      db.user.count(),
+      db.incentive.count({ where: { status: "ACTIVE" } }),
+      db.redemption.count(),
+      db.venue.findMany({
+        orderBy: { createdAt: "desc" },
+        take: 5,
+        include: {
+          owner: { select: { email: true } },
+          _count: { select: { incentives: true } },
+        },
+      }),
+    ]);
 
   const stats = [
-    { label: "Total Users", value: userCount, icon: Users, color: "bg-blue-100 text-blue-600" },
-    { label: "Venues", value: venueCount, icon: Building2, color: "bg-purple-100 text-purple-600" },
-    { label: "Incentives", value: incentiveCount, icon: Zap, color: "bg-amber-100 text-amber-600" },
-    { label: "Events", value: eventCount, icon: Calendar, color: "bg-emerald-100 text-emerald-600" },
+    { label: "Total Venues", value: venueCount, icon: Building2, href: "/admin/venues", color: "text-purple-600", bg: "bg-purple-50" },
+    { label: "Active Incentives", value: incentiveCount, icon: Tag, href: "/admin/incentives", color: "text-emerald-600", bg: "bg-emerald-50" },
+    { label: "Total Redemptions", value: redemptionCount, icon: BarChart2, href: "/admin/analytics", color: "text-blue-600", bg: "bg-blue-50" },
+    { label: "Registered Users", value: userCount, icon: Users, href: "/admin/users", color: "text-orange-600", bg: "bg-orange-50" },
   ];
 
   return (
-    <div className="p-8 max-w-6xl mx-auto">
+    <div className="p-8 max-w-5xl mx-auto">
       <div className="mb-8">
-        <div className="inline-flex items-center gap-2.5 mb-4">
-          <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-[#7C3AED] via-[#D946EF] to-[#F97316] flex items-center justify-center">
-            <span className="text-white font-bold text-xs">CL</span>
-          </div>
-          <span className="font-bold" style={{ color: "var(--fg)" }}>ConnectLive</span>
-        </div>
         <h1 className="text-2xl font-bold" style={{ color: "var(--fg)" }}>Admin Overview</h1>
         <p className="mt-1 text-sm" style={{ color: "var(--muted)" }}>
-          Platform-wide stats and venue management
+          ConnectLive partner portal — all venues, incentives, and users at a glance.
         </p>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
-        {stats.map(({ label, value, icon: Icon, color }) => (
-          <div
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        {stats.map(({ label, value, icon: Icon, href, color, bg }) => (
+          <Link
             key={label}
-            className="rounded-2xl border p-5 shadow-sm"
+            href={href}
+            className="rounded-2xl border p-5 shadow-sm hover:shadow-md hover:scale-[1.02] active:scale-[0.99] transition-all"
             style={{ background: "var(--card)", borderColor: "var(--border)" }}
           >
-            <div className={`w-9 h-9 rounded-xl ${color} flex items-center justify-center mb-3`}>
-              <Icon className="w-4 h-4" />
+            <div className={`inline-flex p-2 rounded-xl mb-3 ${bg}`}>
+              <Icon className={`w-5 h-5 ${color}`} />
             </div>
-            <p className="text-3xl font-bold" style={{ color: "var(--fg)" }}>{value}</p>
-            <p className="text-sm mt-0.5" style={{ color: "var(--muted)" }}>{label}</p>
-          </div>
+            <p className="text-3xl font-bold" style={{ color: "var(--fg)" }}>{value.toLocaleString()}</p>
+            <p className="text-sm mt-1" style={{ color: "var(--muted)" }}>{label}</p>
+          </Link>
         ))}
       </div>
 
-      {/* Recent Venues */}
       <div
         className="rounded-2xl border shadow-sm overflow-hidden"
         style={{ background: "var(--card)", borderColor: "var(--border)" }}
       >
-        <div className="px-6 py-4 border-b" style={{ borderColor: "var(--border)" }}>
-          <h2 className="font-semibold" style={{ color: "var(--fg)" }}>Recent Venues</h2>
+        <div className="px-6 py-4 border-b flex items-center justify-between" style={{ borderColor: "var(--border)" }}>
+          <h2 className="font-semibold" style={{ color: "var(--fg)" }}>Recently Joined Venues</h2>
+          <Link href="/admin/venues" className="text-sm text-purple-600 hover:underline font-medium">
+            View all →
+          </Link>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr style={{ borderBottom: `1px solid var(--border)` }}>
-                {["Venue", "Owner", "Type", "City", "Incentives", "Events", "Created"].map((h) => (
-                  <th
-                    key={h}
-                    className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide"
-                    style={{ color: "var(--muted)" }}
-                  >
-                    {h}
-                  </th>
-                ))}
+        <table className="w-full text-sm">
+          <thead>
+            <tr style={{ borderBottom: "1px solid var(--border)", color: "var(--muted)" }}>
+              <th className="text-left px-6 py-3 font-medium">Venue</th>
+              <th className="text-left px-6 py-3 font-medium">Owner email</th>
+              <th className="text-left px-6 py-3 font-medium">City</th>
+              <th className="text-right px-6 py-3 font-medium">Incentives</th>
+            </tr>
+          </thead>
+          <tbody>
+            {recentVenues.map((v) => (
+              <tr key={v.id} className="hover:bg-purple-50/30 transition-colors" style={{ borderBottom: "1px solid var(--border)" }}>
+                <td className="px-6 py-3 font-medium" style={{ color: "var(--fg)" }}>
+                  <Link href={`/admin/venues/${v.id}`} className="hover:text-purple-600">{v.name}</Link>
+                </td>
+                <td className="px-6 py-3" style={{ color: "var(--muted)" }}>{v.owner.email}</td>
+                <td className="px-6 py-3" style={{ color: "var(--muted)" }}>{v.city}, {v.state}</td>
+                <td className="px-6 py-3 text-right" style={{ color: "var(--muted)" }}>{v._count.incentives}</td>
               </tr>
-            </thead>
-            <tbody className="divide-y" style={{ borderColor: "var(--border)" }}>
-              {recentVenues.map((venue) => (
-                <tr key={venue.id} className="hover:opacity-80 transition-opacity">
-                  <td className="px-6 py-4 font-medium" style={{ color: "var(--fg)" }}>
-                    {venue.name}
-                  </td>
-                  <td className="px-6 py-4" style={{ color: "var(--muted)" }}>
-                    {venue.owner.name ?? venue.owner.email}
-                  </td>
-                  <td className="px-6 py-4" style={{ color: "var(--muted)" }}>
-                    {venue.type}
-                  </td>
-                  <td className="px-6 py-4" style={{ color: "var(--muted)" }}>
-                    {venue.city}, {venue.state}
-                  </td>
-                  <td className="px-6 py-4 text-center" style={{ color: "var(--fg)" }}>
-                    {venue._count.incentives}
-                  </td>
-                  <td className="px-6 py-4 text-center" style={{ color: "var(--fg)" }}>
-                    {venue._count.events}
-                  </td>
-                  <td className="px-6 py-4" style={{ color: "var(--muted)" }}>
-                    {new Date(venue.createdAt).toLocaleDateString()}
-                  </td>
-                </tr>
-              ))}
-              {recentVenues.length === 0 && (
-                <tr>
-                  <td colSpan={7} className="px-6 py-10 text-center" style={{ color: "var(--muted)" }}>
-                    No venues yet
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+            ))}
+            {recentVenues.length === 0 && (
+              <tr><td colSpan={4} className="px-6 py-8 text-center" style={{ color: "var(--muted)" }}>No venues yet.</td></tr>
+            )}
+          </tbody>
+        </table>
       </div>
     </div>
   );
