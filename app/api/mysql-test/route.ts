@@ -1,3 +1,6 @@
+// DigitalOcean managed MySQL uses a self-signed certificate chain.
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import mysql from "mysql2/promise";

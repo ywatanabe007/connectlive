@@ -9,6 +9,10 @@
  * — confirm the exact table name with the mobile dev team.
  */
 
+// DigitalOcean managed MySQL uses a self-signed certificate chain.
+// Set this before mysql2 initializes its TLS socket.
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+
 import mysql from "mysql2/promise";
 import type { BusinessHours } from "@/lib/constants";
 
