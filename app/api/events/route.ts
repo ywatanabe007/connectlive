@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
+import { syncEventToMySQL } from "@/lib/mysql-sync";
 
 async function getVenueForSession() {
   const session = await auth();
@@ -28,8 +29,11 @@ export async function POST(req: Request) {
   if (!venue) return NextResponse.json({ error: "No venue found" }, { status: 404 });
 
   try {
-    const { title, description, date, startTime, endTime, coverCharge, imageUrl } =
-      await req.json();
+    const {
+      title, description, date, startTime, endTime, coverCharge, imageUrl,
+      eventType, category, businessType, experienceCategory, timingRestrictions,
+      groupFriendly, incentiveHint, incentiveDesc, eventUrl,
+    } = await req.json();
 
     if (!title || !date || !startTime) {
       return NextResponse.json({ error: "Title, date, and start time are required." }, { status: 400 });
@@ -43,10 +47,24 @@ export async function POST(req: Request) {
         date: new Date(date),
         startTime,
         endTime: endTime || null,
-        coverCharge: coverCharge != null ? parseFloat(String(coverCharge)) : null,
+        coverCharge: coverCharge != null && coverCharge !== "" ? parseFloat(String(coverCharge)) : null,
         imageUrl: imageUrl?.trim() || null,
+        eventType: eventType?.trim() || null,
+        category: category?.trim() || null,
+        businessType: businessType?.trim() || null,
+        experienceCategory: experienceCategory?.trim() || null,
+        timingRestrictions: timingRestrictions?.trim() || null,
+        groupFriendly: groupFriendly ?? false,
+        incentiveHint: incentiveHint?.trim() || null,
+        incentiveDesc: incentiveDesc?.trim() || null,
+        eventUrl: eventUrl?.trim() || null,
       },
     });
+
+    // Sync to DigitalOcean MySQL
+    syncEventToMySQL(event, venue).catch((err) =>
+      console.error("[mysql-sync] event POST sync failed:", err)
+    );
 
     return NextResponse.json(event, { status: 201 });
   } catch (err) {

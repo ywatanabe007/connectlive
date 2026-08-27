@@ -229,12 +229,131 @@ export async function syncVenueToMySQL(
 
 /**
  * Remove a venue row from the mobile DB when it's deleted in the partner portal.
- * (Optional — you may prefer to set a status flag instead of hard-deleting.)
  */
 export async function removeVenueFromMySQL(partnerPortalId: string): Promise<void> {
   const pool = getPool();
   await pool.execute(
-    `DELETE FROM \`${VENUE_TABLE}\` WHERE source_event_id = ?`,
+    `DELETE FROM \`${VENUE_TABLE}\` WHERE source_event_id = ? AND source = 'partner_portal'`,
     [partnerPortalId]
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Event types
+// ---------------------------------------------------------------------------
+
+type PortalEvent = {
+  id: string;
+  venueId: string;
+  title: string;
+  description: string | null;
+  date: Date | string;
+  startTime: string;
+  endTime: string | null;
+  coverCharge: number | null;
+  imageUrl: string | null;
+  eventType: string | null;
+  category: string | null;
+  businessType: string | null;
+  experienceCategory: string | null;
+  timingRestrictions: string | null;
+  groupFriendly: boolean;
+  incentiveHint: string | null;
+  incentiveDesc: string | null;
+  eventUrl: string | null;
+  status: string;
+};
+
+type PortalVenueBasic = {
+  name: string;
+  address: string;
+  city: string;
+  state: string;
+  zip: string;
+  lat: number;
+  lng: number;
+  businessType: string | null;
+  experienceCategory: string | null;
+  groupFriendly: boolean;
+};
+
+/**
+ * Format a date + time string into MySQL DATETIME format: YYYY-MM-DD HH:MM:SS
+ */
+function toMySQLDatetime(date: Date | string, time: string): string {
+  const d = new Date(date);
+  const dateStr = d.toISOString().slice(0, 10); // YYYY-MM-DD
+  // Ensure time is HH:MM:SS
+  const timeParts = time.split(":");
+  const timeStr = `${timeParts[0] ?? "00"}:${timeParts[1] ?? "00"}:${timeParts[2] ?? "00"}`;
+  return `${dateStr} ${timeStr}`;
+}
+
+/**
+ * Upsert a partner event into the mobile DB.
+ * Uses source = "partner_events" so the mobile app shows it in the Partner Events section.
+ */
+export async function syncEventToMySQL(
+  event: PortalEvent,
+  venue: PortalVenueBasic
+): Promise<void> {
+  const pool = getPool();
+
+  const startDatetime = toMySQLDatetime(event.date, event.startTime);
+  const endDatetime = event.endTime
+    ? toMySQLDatetime(event.date, event.endTime)
+    : null;
+
+  const row: Record<string, unknown> = {
+    source_event_id:    event.id,
+    source:             "partner_events",
+    event_title:        event.title,
+    location_name:      venue.name,
+    address:            venue.address,
+    city:               venue.city,
+    state:              venue.state,
+    zip_code:           venue.zip,
+    latitude:           venue.lat,
+    longitude:          venue.lng,
+    description:        event.description ?? null,
+    event_type:         event.eventType ?? null,
+    category:           event.category ?? null,
+    business_type:      event.businessType ?? venue.businessType ?? null,
+    experience_category: event.experienceCategory ?? venue.experienceCategory ?? null,
+    timing_restrictions: event.timingRestrictions ?? null,
+    group_friendly:     (event.groupFriendly ?? venue.groupFriendly) ? "Yes" : "No",
+    incentive_hint:     event.incentiveHint ?? null,
+    incentives:         event.incentiveDesc ?? null,
+    image_url:          event.imageUrl ?? null,
+    event_url:          event.eventUrl ?? null,
+    start_date:         startDatetime,
+    end_date:           endDatetime,
+    date_updated:       new Date(),
+  };
+
+  const columns = Object.keys(row);
+  const placeholders = columns.map(() => "?").join(", ");
+  const updates = columns
+    .filter((c) => c !== "source_event_id" && c !== "source")
+    .map((c) => `\`${c}\` = VALUES(\`${c}\`)`)
+    .join(", ");
+
+  const sql = `
+    INSERT INTO \`${VENUE_TABLE}\` (${columns.map((c) => `\`${c}\``).join(", ")})
+    VALUES (${placeholders})
+    ON DUPLICATE KEY UPDATE ${updates}
+  `;
+
+  await pool.execute(sql, Object.values(row));
+}
+
+/**
+ * Remove a partner event row from the mobile DB when deleted in the portal.
+ */
+export async function removeEventFromMySQL(eventId: string): Promise<void> {
+  const pool = getPool();
+  await pool.execute(
+    `DELETE FROM \`${VENUE_TABLE}\` WHERE source_event_id = ? AND source = 'partner_events'`,
+    [eventId]
   );
 }
