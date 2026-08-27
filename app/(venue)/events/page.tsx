@@ -10,6 +10,10 @@ const EVENT_TYPES = [
   "Art Show", "Networking", "Private Event", "Holiday Event", "Other",
 ];
 
+const EVENT_CATEGORIES = [
+  "Arts & Theatre", "Film", "Misc.", "Hobby", "Music", "Sports",
+];
+
 type Event = {
   id: string;
   title: string;
@@ -189,7 +193,7 @@ function EventModal({
               <label className="block text-sm font-medium mb-1.5" style={{ color: "var(--fg)" }}>Category</label>
               <select value={form.category} onChange={(e) => set("category", e.target.value)} className={inputCls} style={inputStyle}>
                 <option value="">Select category…</option>
-                {EXPERIENCE_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                {EVENT_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
               </select>
             </div>
           </div>
