@@ -201,6 +201,7 @@ export async function syncVenueToMySQL(
     hours_timezone:     venue.timeZone ?? null,
     hours_source:       "partner_portal",
     incentives:         incentivesSummary,
+    incentive_hint:     incentives.find((i) => i.status === "ACTIVE")?.teaserText ?? null,
     incentives_json:    incentivesJson.length > 0 ? JSON.stringify(incentivesJson) : null,
     expiration_status:  incentives.length > 0
                           ? toExpirationStatus(incentives[0].recurrence)
