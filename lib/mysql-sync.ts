@@ -45,6 +45,7 @@ function getPool(): mysql.Pool {
 }
 
 const VENUE_TABLE = process.env.MYSQL_VENUE_TABLE ?? "tbl_venues";
+const EVENT_TABLE = process.env.MYSQL_EVENT_TABLE ?? "tbl_venues_near_you_staging";
 
 // ---------------------------------------------------------------------------
 // Type definitions
@@ -290,8 +291,10 @@ function toMySQLDatetime(date: Date | string, time: string): string {
 }
 
 /**
- * Upsert a partner event into the mobile DB.
- * Uses source = "partner_events" so the mobile app shows it in the Partner Events section.
+ * Insert a partner event into the mobile DB.
+ * Uses source = "partner_event" so the mobile app shows it in the Partner Events section.
+ * Matches the columns of tbl_venues_near_you_staging.
+ * On duplicate (same source + event_title + start_date), update in place.
  */
 export async function syncEventToMySQL(
   event: PortalEvent,
@@ -305,41 +308,31 @@ export async function syncEventToMySQL(
     : null;
 
   const row: Record<string, string | number | boolean | Date | null> = {
-    source_event_id:    event.id,
-    source:             "partner_events",
-    event_title:        event.title,
-    location_name:      venue.name,
-    address:            venue.address,
-    city:               venue.city,
-    state:              venue.state,
-    zip_code:           venue.zip,
-    latitude:           venue.lat,
-    longitude:          venue.lng,
-    description:        event.description ?? null,
-    event_type:         event.eventType ?? null,
-    category:           event.category ?? null,
-    business_type:      event.businessType ?? venue.businessType ?? null,
-    experience_category: event.experienceCategory ?? venue.experienceCategory ?? null,
-    timing_restrictions: event.timingRestrictions ?? null,
-    group_friendly:     (event.groupFriendly ?? venue.groupFriendly) ? "Yes" : "No",
-    incentive_hint:     event.incentiveHint ?? null,
-    incentives:         event.incentiveDesc ?? null,
-    image_url:          event.imageUrl ?? null,
-    event_url:          event.eventUrl ?? null,
-    start_date:         startDatetime,
-    end_date:           endDatetime,
-    date_updated:       new Date(),
+    source:         "partner_event",
+    event_title:    event.title,
+    location_name:  venue.name,
+    address:        venue.address,
+    city:           venue.city,
+    state:          venue.state,
+    zip_code:       venue.zip,
+    event_type:     event.eventType ?? null,
+    category:       event.category ?? null,
+    description:    event.description ?? null,
+    start_date:     startDatetime,
+    end_date:       endDatetime,
+    event_url:      event.eventUrl ?? null,
+    image_url:      event.imageUrl ?? null,
   };
 
   const columns = Object.keys(row);
   const placeholders = columns.map(() => "?").join(", ");
   const updates = columns
-    .filter((c) => c !== "source_event_id" && c !== "source")
+    .filter((c) => c !== "source")
     .map((c) => `\`${c}\` = VALUES(\`${c}\`)`)
     .join(", ");
 
   const sql = `
-    INSERT INTO \`${VENUE_TABLE}\` (${columns.map((c) => `\`${c}\``).join(", ")})
+    INSERT INTO \`${EVENT_TABLE}\` (${columns.map((c) => `\`${c}\``).join(", ")})
     VALUES (${placeholders})
     ON DUPLICATE KEY UPDATE ${updates}
   `;
@@ -349,11 +342,12 @@ export async function syncEventToMySQL(
 
 /**
  * Remove a partner event row from the mobile DB when deleted in the portal.
+ * Pass the event title so we can match without a source_event_id column.
  */
-export async function removeEventFromMySQL(eventId: string): Promise<void> {
+export async function removeEventFromMySQL(eventTitle: string): Promise<void> {
   const pool = getPool();
   await pool.execute(
-    `DELETE FROM \`${VENUE_TABLE}\` WHERE source_event_id = ? AND source = 'partner_events'`,
-    [eventId]
+    `DELETE FROM \`${EVENT_TABLE}\` WHERE source = 'partner_event' AND event_title = ?`,
+    [eventTitle]
   );
 }

@@ -47,8 +47,8 @@ export async function DELETE(_req: Request, { params }: RouteParams) {
 
   await db.event.delete({ where: { id } });
 
-  // Remove from DigitalOcean MySQL
-  removeEventFromMySQL(id).catch((err) =>
+  // Remove from DigitalOcean MySQL (match by title since events table has no source_event_id)
+  removeEventFromMySQL(event.title).catch((err) =>
     console.error("[mysql-sync] event DELETE sync failed:", err)
   );
 
