@@ -121,7 +121,9 @@ export default function OnboardingPage() {
       return;
     }
 
-    await update?.();
+    await update?.({ trigger: "update" });
+    // Small delay to allow the JWT session to propagate before navigating
+    await new Promise((resolve) => setTimeout(resolve, 800));
     router.push("/dashboard");
     router.refresh();
   }
