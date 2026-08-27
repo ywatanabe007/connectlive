@@ -450,7 +450,8 @@ export default function IncentivesPage() {
           {incentives.map((incentive) => (
             <div
               key={incentive.id}
-              className="rounded-2xl border p-5 flex items-start gap-4 shadow-sm"
+              onClick={() => setEditingIncentive(incentive)}
+              className="rounded-2xl border p-5 flex items-start gap-4 shadow-sm cursor-pointer hover:border-purple-300 hover:shadow-md transition-all"
               style={{
                 background: "var(--card)",
                 borderColor: "var(--border)",
@@ -513,7 +514,7 @@ export default function IncentivesPage() {
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 flex-shrink-0">
+              <div className="flex items-center gap-2 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
                 <button
                   onClick={() => setEditingIncentive(incentive)}
                   className="p-1.5 rounded-lg hover:bg-purple-50 hover:text-purple-600 transition-all"
