@@ -291,10 +291,10 @@ function toMySQLDatetime(date: Date | string, time: string): string {
 }
 
 /**
- * Insert a partner event into the mobile DB.
- * Uses source = "partner_event" so the mobile app shows it in the Partner Events section.
- * Matches the columns of tbl_venues_near_you_staging.
- * On duplicate (same source + event_title + start_date), update in place.
+ * Upsert a partner event into the mobile DB.
+ * Uses source = "partner_event" and source_event_id (our portal cuid) as the unique key.
+ * Requires tbl_venues_near_you_staging to have:
+ *   source_event_id varchar(255), UNIQUE INDEX uq_source_event (source_event_id, source)
  */
 export async function syncEventToMySQL(
   event: PortalEvent,
@@ -308,26 +308,27 @@ export async function syncEventToMySQL(
     : null;
 
   const row: Record<string, string | number | boolean | Date | null> = {
-    source:         "partner_event",
-    event_title:    event.title,
-    location_name:  venue.name,
-    address:        venue.address,
-    city:           venue.city,
-    state:          venue.state,
-    zip_code:       venue.zip,
-    event_type:     event.eventType ?? null,
-    category:       event.category ?? null,
-    description:    event.description ?? null,
-    start_date:     startDatetime,
-    end_date:       endDatetime,
-    event_url:      event.eventUrl ?? null,
-    image_url:      event.imageUrl ?? null,
+    source_event_id: event.id,
+    source:          "partner_event",
+    event_title:     event.title,
+    location_name:   venue.name,
+    address:         venue.address,
+    city:            venue.city,
+    state:           venue.state,
+    zip_code:        venue.zip,
+    event_type:      event.eventType ?? null,
+    category:        event.category ?? null,
+    description:     event.description ?? null,
+    start_date:      startDatetime,
+    end_date:        endDatetime,
+    event_url:       event.eventUrl ?? null,
+    image_url:       event.imageUrl ?? null,
   };
 
   const columns = Object.keys(row);
   const placeholders = columns.map(() => "?").join(", ");
   const updates = columns
-    .filter((c) => c !== "source")
+    .filter((c) => c !== "source_event_id" && c !== "source")
     .map((c) => `\`${c}\` = VALUES(\`${c}\`)`)
     .join(", ");
 
@@ -342,12 +343,11 @@ export async function syncEventToMySQL(
 
 /**
  * Remove a partner event row from the mobile DB when deleted in the portal.
- * Pass the event title so we can match without a source_event_id column.
  */
-export async function removeEventFromMySQL(eventTitle: string): Promise<void> {
+export async function removeEventFromMySQL(eventId: string): Promise<void> {
   const pool = getPool();
   await pool.execute(
-    `DELETE FROM \`${EVENT_TABLE}\` WHERE source = 'partner_event' AND event_title = ?`,
-    [eventTitle]
+    `DELETE FROM \`${EVENT_TABLE}\` WHERE source_event_id = ? AND source = 'partner_event'`,
+    [eventId]
   );
 }
