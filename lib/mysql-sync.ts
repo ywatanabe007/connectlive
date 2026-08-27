@@ -304,7 +304,7 @@ export async function syncEventToMySQL(
     ? toMySQLDatetime(event.date, event.endTime)
     : null;
 
-  const row: Record<string, unknown> = {
+  const row: Record<string, string | number | boolean | Date | null> = {
     source_event_id:    event.id,
     source:             "partner_events",
     event_title:        event.title,
