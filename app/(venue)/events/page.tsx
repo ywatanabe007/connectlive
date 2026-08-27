@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { Plus, Calendar, Trash2, X, Pencil, Clock, ExternalLink } from "lucide-react";
-import { EXPERIENCE_CATEGORIES, BUSINESS_TYPES } from "@/lib/constants";
 
 const EVENT_TYPES = [
   "Concert", "Comedy Night", "Happy Hour", "Live Music", "DJ Night",
@@ -49,13 +48,9 @@ type EventFormState = {
   date: string;
   startTime: string;
   endTime: string;
-  coverCharge: string;
   imageUrl: string;
   eventType: string;
   category: string;
-  businessType: string;
-  experienceCategory: string;
-  timingRestrictions: string;
   groupFriendly: boolean;
   incentiveHint: string;
   incentiveDesc: string;
@@ -68,13 +63,9 @@ const EMPTY_FORM: EventFormState = {
   date: "",
   startTime: "",
   endTime: "",
-  coverCharge: "",
   imageUrl: "",
   eventType: "",
   category: "",
-  businessType: "",
-  experienceCategory: "",
-  timingRestrictions: "",
   groupFriendly: false,
   incentiveHint: "",
   incentiveDesc: "",
@@ -99,13 +90,9 @@ function EventModal({
           date: initial.date ? initial.date.slice(0, 10) : "",
           startTime: initial.startTime ?? "",
           endTime: initial.endTime ?? "",
-          coverCharge: initial.coverCharge != null ? String(initial.coverCharge) : "",
           imageUrl: initial.imageUrl ?? "",
           eventType: initial.eventType ?? "",
           category: initial.category ?? "",
-          businessType: initial.businessType ?? "",
-          experienceCategory: initial.experienceCategory ?? "",
-          timingRestrictions: initial.timingRestrictions ?? "",
           groupFriendly: initial.groupFriendly ?? false,
           incentiveHint: initial.incentiveHint ?? "",
           incentiveDesc: initial.incentiveDesc ?? "",
@@ -131,7 +118,6 @@ function EventModal({
 
     const payload = {
       ...form,
-      coverCharge: form.coverCharge !== "" ? parseFloat(form.coverCharge) : null,
       groupFriendly: form.groupFriendly,
     };
 
@@ -247,48 +233,11 @@ function EventModal({
             </div>
           </div>
 
-          {/* Timing Restrictions */}
+          {/* Event URL */}
           <div>
-            <label className="block text-sm font-medium mb-1.5" style={{ color: "var(--fg)" }}>Timing restrictions</label>
-            <input type="text" value={form.timingRestrictions} onChange={(e) => set("timingRestrictions", e.target.value)}
-              placeholder="e.g. Doors open at 7pm, show starts 8pm" className={inputCls} style={inputStyle} />
-          </div>
-
-          {/* Business Type + Experience Category (optional overrides) */}
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium mb-1.5" style={{ color: "var(--fg)" }}>
-                Business type <span className="text-xs font-normal" style={{ color: "var(--muted)" }}>(optional)</span>
-              </label>
-              <select value={form.businessType} onChange={(e) => set("businessType", e.target.value)} className={inputCls} style={inputStyle}>
-                <option value="">Use venue default…</option>
-                {BUSINESS_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-1.5" style={{ color: "var(--fg)" }}>
-                Experience category <span className="text-xs font-normal" style={{ color: "var(--muted)" }}>(optional)</span>
-              </label>
-              <select value={form.experienceCategory} onChange={(e) => set("experienceCategory", e.target.value)} className={inputCls} style={inputStyle}>
-                <option value="">Use venue default…</option>
-                {EXPERIENCE_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
-              </select>
-            </div>
-          </div>
-
-          {/* Cover Charge + Event URL */}
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium mb-1.5" style={{ color: "var(--fg)" }}>Cover charge ($)</label>
-              <input type="number" min="0" step="0.01" value={form.coverCharge}
-                onChange={(e) => set("coverCharge", e.target.value)}
-                placeholder="0 for free" className={inputCls} style={inputStyle} />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-1.5" style={{ color: "var(--fg)" }}>Event URL</label>
-              <input type="url" value={form.eventUrl} onChange={(e) => set("eventUrl", e.target.value)}
-                placeholder="https://tickets.example.com" className={inputCls} style={inputStyle} />
-            </div>
+            <label className="block text-sm font-medium mb-1.5" style={{ color: "var(--fg)" }}>Event URL</label>
+            <input type="url" value={form.eventUrl} onChange={(e) => set("eventUrl", e.target.value)}
+              placeholder="https://tickets.example.com" className={inputCls} style={inputStyle} />
           </div>
 
           {/* Image URL */}
