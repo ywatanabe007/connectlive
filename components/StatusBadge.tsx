@@ -9,22 +9,32 @@ export function StatusBadge({ startAt, endAt }: StatusBadgeProps) {
   const now = new Date();
   const start = new Date(startAt);
   const end = new Date(endAt);
-  const minsUntilStart = (start.getTime() - now.getTime()) / 60000;
 
+  // Green — active right now
   if (now >= start && now <= end) {
     return (
       <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-500 text-white whitespace-nowrap">
-        ● LIVE
+        ● ACTIVE
       </span>
     );
   }
-  if (minsUntilStart <= 60 && minsUntilStart > 0) {
+
+  // Orange — starts later today (same calendar day, hasn't started yet)
+  const startIsToday =
+    start > now &&
+    start.getFullYear() === now.getFullYear() &&
+    start.getMonth() === now.getMonth() &&
+    start.getDate() === now.getDate();
+
+  if (startIsToday) {
     return (
       <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-400 text-white whitespace-nowrap">
-        ● SOON
+        ● TODAY
       </span>
     );
   }
+
+  // Grey — starts on a future date
   return (
     <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-neutral-400 text-white whitespace-nowrap">
       ● LATER
