@@ -22,8 +22,24 @@ export async function DELETE(_req: Request, { params }: RouteParams) {
   await requireAdmin();
   const { id } = await params;
 
-  const user = await db.user.findUnique({ where: { id } });
+  const user = await db.user.findUnique({
+    where: { id },
+    include: { venue: { include: { incentives: true, events: true } } },
+  });
   if (!user) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  // Delete venue children first to satisfy foreign key constraints
+  if (user.venue) {
+    const venueId = user.venue.id;
+    // Redemptions reference incentives, so clear them first
+    const incentiveIds = user.venue.incentives.map((i) => i.id);
+    if (incentiveIds.length > 0) {
+      await db.redemption.deleteMany({ where: { incentiveId: { in: incentiveIds } } });
+    }
+    await db.incentive.deleteMany({ where: { venueId } });
+    await db.event.deleteMany({ where: { venueId } });
+    await db.venue.delete({ where: { id: venueId } });
+  }
 
   await db.user.delete({ where: { id } });
   return NextResponse.json({ success: true });
