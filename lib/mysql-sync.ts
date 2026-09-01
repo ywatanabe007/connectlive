@@ -27,7 +27,7 @@ function getSslConfig(): object {
   return { rejectUnauthorized: false };
 }
 
-function getPool(): mysql.Pool {
+export function getPool(): mysql.Pool {
   if (!pool) {
     pool = mysql.createPool({
       host: process.env.MYSQL_HOST,
