@@ -107,7 +107,7 @@ export async function POST(req: Request) {
               groupFriendly,
               lat,
               lng,
-              businessHours,
+              businessHours: businessHours ?? undefined,
             },
           });
 
