@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
-import { markVenueAsClaimed } from "@/lib/mysql-sync";
+import { getPool, markVenueAsClaimed } from "@/lib/mysql-sync";
+
+const VENUE_TABLE = process.env.MYSQL_VENUE_TABLE ?? "tbl_venues";
 
 export async function POST(req: Request) {
   const session = await auth();
@@ -15,53 +17,110 @@ export async function POST(req: Request) {
   }
 
   try {
-    const {
-      mysqlId,
-      name,
-      address,
-      city,
-      state,
-      zip,
-      phone,
-      website,
-      imageUrl,
-      description,
-      businessType,
-      experienceCategory,
-      groupFriendly,
-      lat,
-      lng,
-    } = await req.json();
+    const body = await req.json();
+    const { mysqlId } = body;
 
-    if (!mysqlId || !name || !address || !city || !state || !zip) {
-      return NextResponse.json({ error: "Missing required fields." }, { status: 400 });
+    if (!mysqlId) {
+      return NextResponse.json({ error: "Missing mysqlId." }, { status: 400 });
     }
 
-    // Use coordinates from MySQL if available, otherwise fall back to 0
-    const venueLat = typeof lat === "number" && lat !== 0 ? lat : 0;
-    const venueLng = typeof lng === "number" && lng !== 0 ? lng : 0;
+    // Re-fetch the full MySQL row so we get every column including incentives_json
+    const pool = getPool();
+    const [rows] = await pool.execute<any[]>(
+      `SELECT * FROM \`${VENUE_TABLE}\` WHERE id = ? LIMIT 1`,
+      [mysqlId]
+    );
+    const r = rows[0];
+    if (!r) {
+      return NextResponse.json({ error: "Venue not found in database." }, { status: 404 });
+    }
 
-    // Create the venue in Neon pre-filled from MySQL data
+    // Defensive field mapping — handle various column naming conventions the scraper may use
+    const name        = (r.event_title ?? r.location_name ?? r.name ?? body.name ?? "").trim();
+    const address     = (r.address ?? r.street_address ?? body.address ?? "").trim();
+    const city        = (r.city ?? body.city ?? "").trim();
+    const state       = (r.state ?? body.state ?? "").trim().toUpperCase();
+    const zip         = (r.zip_code ?? r.zip ?? r.postal_code ?? body.zip ?? "").trim();
+    const phone       = (r.phone ?? r.phone_number ?? body.phone ?? null)?.trim() || null;
+    const website     = (r.event_url ?? r.website ?? r.url ?? body.website ?? null)?.trim() || null;
+    const imageUrl    = (r.image_url ?? r.photo_url ?? r.cover_image ?? body.imageUrl ?? null)?.trim() || null;
+    const description = (r.description ?? r.about ?? body.description ?? null)?.trim() || null;
+    const businessType       = (r.business_type ?? r.type ?? body.businessType ?? null) || null;
+    const experienceCategory = (r.experience_category ?? r.category ?? body.experienceCategory ?? null) || null;
+    const groupFriendly      = r.group_friendly === "Yes" || r.group_friendly === 1 || r.group_friendly === true || body.groupFriendly === true;
+    const lat = typeof r.latitude === "number" ? r.latitude : typeof r.lat === "number" ? r.lat : (body.lat ?? 0);
+    const lng = typeof r.longitude === "number" ? r.longitude : typeof r.lng === "number" ? r.lng : typeof r.lon === "number" ? r.lon : (body.lng ?? 0);
+
+    if (!name || !address || !city || !state || !zip) {
+      return NextResponse.json({ error: "Missing required venue fields." }, { status: 400 });
+    }
+
+    // Create the venue in Neon
     const venue = await db.venue.create({
       data: {
         ownerId: session.user.id,
-        name: name.trim(),
+        name,
         type: businessType || "",
         businessType: businessType || null,
         experienceCategory: experienceCategory || null,
-        address: address.trim(),
-        city: city.trim(),
-        state: state.trim().toUpperCase(),
-        zip: zip.trim(),
-        phone: phone?.trim() || null,
-        website: website?.trim() || null,
-        imageUrl: imageUrl?.trim() || null,
-        description: description?.trim() || null,
-        groupFriendly: groupFriendly ?? false,
-        lat: venueLat,
-        lng: venueLng,
+        address,
+        city,
+        state,
+        zip,
+        phone,
+        website,
+        imageUrl,
+        description,
+        groupFriendly,
+        lat,
+        lng,
       },
     });
+
+    // Import incentives from incentives_json if present
+    const incentivesRaw = r.incentives_json;
+    if (incentivesRaw) {
+      try {
+        const incentives: any[] = typeof incentivesRaw === "string"
+          ? JSON.parse(incentivesRaw)
+          : incentivesRaw;
+
+        const now = new Date();
+        const farFuture = new Date(now.getFullYear() + 1, now.getMonth(), now.getDate());
+
+        for (const i of incentives) {
+          // Map MySQL incentive fields → Neon Incentive schema
+          const title       = (i.title ?? "").trim();
+          const description = (i.incentives ?? i.description ?? "").trim();
+          if (!title || !description) continue;
+
+          const startAt = i.start_date ? new Date(i.start_date) : now;
+          const endAt   = i.end_date   ? new Date(i.end_date)   : farFuture;
+
+          await db.incentive.create({
+            data: {
+              venueId:         venue.id,
+              title,
+              description,
+              teaserText:      i.incentive_hint ?? i.teaser ?? null,
+              category:        i.type ?? i.category ?? "Other",
+              validTimes:      i.schedule ?? null,
+              recurrence:      i.recurrence ?? "ONE_TIME",
+              startAt:         isNaN(startAt.getTime()) ? now : startAt,
+              endAt:           isNaN(endAt.getTime())   ? farFuture : endAt,
+              maxRedemptions:  i.max_redemptions ?? null,
+              redemptionCount: i.redemption_count ?? 0,
+              groupFriendly:   i.group_friendly === "Yes" || i.group_friendly === true,
+              terms:           i.terms ?? null,
+              status:          "ACTIVE",
+            },
+          });
+        }
+      } catch (err) {
+        // Non-fatal — venue is still created, incentives just won't import
+        console.error("[venues/claim] Failed to import incentives_json:", err);
+      }
+    }
 
     // Upgrade user role to VENUE_OWNER
     await db.user.update({
@@ -69,7 +128,7 @@ export async function POST(req: Request) {
       data: { role: "VENUE_OWNER" },
     });
 
-    // Mark the MySQL row as claimed — flip source + set source_event_id to our portal ID
+    // Mark the MySQL row as claimed
     await markVenueAsClaimed(mysqlId, venue.id);
 
     return NextResponse.json(venue, { status: 201 });
