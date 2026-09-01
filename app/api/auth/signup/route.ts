@@ -54,6 +54,13 @@ export async function POST(req: Request) {
         );
         const r = rows[0];
 
+        if (!r) {
+          console.error(`[signup] MySQL row not found for mysqlId=${mysqlId}`);
+          return NextResponse.json(
+            { id: user.id, email: user.email, venueClaimed: false, claimError: `MySQL row not found for id=${mysqlId}` },
+            { status: 201 }
+          );
+        }
         if (r) {
           const venueName        = (r.event_title ?? r.location_name ?? r.name ?? "").trim();
           const address          = (r.address ?? r.street_address ?? "").trim();
@@ -70,6 +77,13 @@ export async function POST(req: Request) {
           const lat = typeof r.latitude === "number" ? r.latitude : typeof r.lat === "number" ? r.lat : 0;
           const lng = typeof r.longitude === "number" ? r.longitude : typeof r.lng === "number" ? r.lng : typeof r.lon === "number" ? r.lon : 0;
 
+          if (!venueName || !address || !city || !state || !zip) {
+            console.error(`[signup] Missing required venue fields: name=${venueName} address=${address} city=${city} state=${state} zip=${zip}`);
+            return NextResponse.json(
+              { id: user.id, email: user.email, venueClaimed: false, claimError: `Missing fields: name=${venueName} addr=${address} city=${city} state=${state} zip=${zip}` },
+              { status: 201 }
+            );
+          }
           if (venueName && address && city && state && zip) {
             const venue = await db.venue.create({
               data: {
@@ -141,13 +155,16 @@ export async function POST(req: Request) {
             );
           }
         }
-      } catch (err) {
+      } catch (err: any) {
         console.error("[signup] Venue claim failed, user created without venue:", err);
-        // Non-fatal — user is created, they'll set up venue via onboarding
+        return NextResponse.json(
+          { id: user.id, email: user.email, venueClaimed: false, claimError: err?.message ?? String(err) },
+          { status: 201 }
+        );
       }
     }
 
-    return NextResponse.json({ id: user.id, email: user.email }, { status: 201 });
+    return NextResponse.json({ id: user.id, email: user.email, venueClaimed: false }, { status: 201 });
   } catch (err) {
     console.error("[signup] Error:", err);
     return NextResponse.json({ error: "Internal server error." }, { status: 500 });

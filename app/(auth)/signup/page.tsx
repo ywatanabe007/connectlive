@@ -82,8 +82,9 @@ function SignupForm() {
       body: JSON.stringify({ ...form, mysqlId: selectedVenue?.mysqlId ?? null }),
     });
 
+    const data = await res.json();
+
     if (!res.ok) {
-      const data = await res.json();
       setError(data.error || "Failed to create account. Please try again.");
       setLoading(false);
       return;
@@ -103,8 +104,12 @@ function SignupForm() {
     }
 
     // 3. Navigate — venue claim already happened server-side during signup.
-    //    Dashboard queries DB directly so it finds the venue immediately.
-    //    If no venue was selected (or claim failed), dashboard redirects to /onboarding.
+    //    If venueClaimed is false, show error so we can diagnose and still go to onboarding.
+    if (selectedVenue && !data.venueClaimed) {
+      setError(`Debug: claim failed for mysqlId=${selectedVenue.mysqlId}. claimError=${data.claimError ?? "none"}`);
+      setLoading(false);
+      return;
+    }
     window.location.href = selectedVenue ? "/dashboard" : "/onboarding";
   }
 
