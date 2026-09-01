@@ -271,15 +271,7 @@ export async function searchClaimableVenues(
 ): Promise<ClaimableVenue[]> {
   const pool = getPool();
 
-  let sql = `
-    SELECT id, source_event_id, event_title, location_name, address, city, state, zip_code,
-           event_url, image_url, description,
-           business_type, experience_category, group_friendly,
-           latitude, longitude
-    FROM \`${VENUE_TABLE}\`
-    WHERE source = 'ConnectLive'
-      AND (event_title LIKE ? OR location_name LIKE ?)
-  `;
+  let sql = `SELECT * FROM \`${VENUE_TABLE}\` WHERE source = 'ConnectLive' AND (event_title LIKE ? OR location_name LIKE ?)`;
   const params: string[] = [`%${name}%`, `%${name}%`];
 
   if (city?.trim()) {
@@ -293,21 +285,21 @@ export async function searchClaimableVenues(
 
   return rows.map((r) => ({
     mysqlId: r.id as number,
-    sourceEventId: r.source_event_id as string | null,
-    name: ((r.event_title ?? r.location_name ?? "") as string),
-    address: (r.address ?? "") as string,
-    city: (r.city ?? "") as string,
-    state: (r.state ?? "") as string,
-    zip: (r.zip_code ?? "") as string,
-    phone: null,
-    website: r.event_url as string | null,
-    imageUrl: r.image_url as string | null,
-    description: r.description as string | null,
-    businessType: r.business_type as string | null,
-    experienceCategory: r.experience_category as string | null,
-    groupFriendly: r.group_friendly === "Yes",
-    lat: r.latitude as number | null,
-    lng: r.longitude as number | null,
+    sourceEventId: (r.source_event_id ?? null) as string | null,
+    name: ((r.event_title ?? r.location_name ?? r.name ?? "") as string),
+    address: ((r.address ?? r.street_address ?? "") as string),
+    city: ((r.city ?? "") as string),
+    state: ((r.state ?? "") as string),
+    zip: ((r.zip_code ?? r.zip ?? r.postal_code ?? "") as string),
+    phone: ((r.phone ?? r.phone_number ?? null) as string | null),
+    website: ((r.event_url ?? r.website ?? r.url ?? null) as string | null),
+    imageUrl: ((r.image_url ?? r.photo_url ?? r.cover_image ?? null) as string | null),
+    description: ((r.description ?? r.about ?? null) as string | null),
+    businessType: ((r.business_type ?? r.type ?? null) as string | null),
+    experienceCategory: ((r.experience_category ?? r.category ?? null) as string | null),
+    groupFriendly: r.group_friendly === "Yes" || r.group_friendly === 1 || r.group_friendly === true,
+    lat: ((r.latitude ?? r.lat ?? null) as number | null),
+    lng: ((r.longitude ?? r.lng ?? r.lon ?? null) as number | null),
   }));
 }
 
