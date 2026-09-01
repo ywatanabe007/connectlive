@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { Building2, FileText, CheckCircle2, MapPin, Clock, Search, X } from "lucide-react";
@@ -64,6 +64,13 @@ export default function OnboardingPage() {
   const router = useRouter();
   const session = useSession();
   const update = session?.update;
+
+  // Redirect to dashboard if venue already exists (e.g. claimed during signup)
+  useEffect(() => {
+    fetch("/api/venues/mine").then((r) => {
+      if (r.ok) router.replace("/dashboard");
+    });
+  }, [router]);
 
   // step 0 = claim search, 1-3 = manual flow
   const [step, setStep] = useState(0);
