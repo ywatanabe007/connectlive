@@ -75,11 +75,11 @@ function SignupForm() {
       return;
     }
 
-    // 1. Create account
+    // 1. Create account (and claim venue server-side if one was selected)
     const res = await fetch("/api/auth/signup", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form),
+      body: JSON.stringify({ ...form, mysqlId: selectedVenue?.mysqlId ?? null }),
     });
 
     if (!res.ok) {
@@ -102,23 +102,10 @@ function SignupForm() {
       return;
     }
 
-    // 3. If a venue was selected, claim it now
-    if (selectedVenue) {
-      const claimRes = await fetch("/api/venues/claim", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(selectedVenue),
-      });
-
-      // Always go to dashboard regardless of claim result.
-      // If the claim succeeded the dashboard shows the venue.
-      // If it failed (session race, 409 already-claimed, etc.) the dashboard
-      // page queries the DB itself and redirects to /onboarding only if
-      // truly no venue exists — so we never get stuck here.
-      window.location.href = "/dashboard";
-    } else {
-      window.location.href = "/onboarding";
-    }
+    // 3. Navigate — venue claim already happened server-side during signup.
+    //    Dashboard queries DB directly so it finds the venue immediately.
+    //    If no venue was selected (or claim failed), dashboard redirects to /onboarding.
+    window.location.href = selectedVenue ? "/dashboard" : "/onboarding";
   }
 
   return (
