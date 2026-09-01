@@ -138,7 +138,7 @@ export async function POST(req: Request) {
               description:     singleDesc,
               teaserText:      (r.incentive_hint ?? null)?.trim() || null,
               category:        r.category ?? r.event_type ?? "Other",
-              validTimes:      r.operating_hours ?? null,
+              validTimes:      null,
               recurrence:      "ONE_TIME",
               startAt:         now2,
               endAt:           farFuture2,
