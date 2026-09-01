@@ -273,7 +273,7 @@ export async function searchClaimableVenues(
 
   let sql = `
     SELECT id, source_event_id, event_title, location_name, address, city, state, zip_code,
-           phone, event_url, image_url, description,
+           event_url, image_url, description,
            business_type, experience_category, group_friendly,
            latitude, longitude
     FROM \`${VENUE_TABLE}\`
@@ -299,7 +299,7 @@ export async function searchClaimableVenues(
     city: (r.city ?? "") as string,
     state: (r.state ?? "") as string,
     zip: (r.zip_code ?? "") as string,
-    phone: r.phone as string | null,
+    phone: null,
     website: r.event_url as string | null,
     imageUrl: r.image_url as string | null,
     description: r.description as string | null,
