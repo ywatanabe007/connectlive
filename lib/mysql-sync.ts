@@ -458,3 +458,22 @@ export function convertOperatingHours(oh: any): Record<string, { open: string; c
   }
   return result;
 }
+
+/**
+ * Strip raw scraper metadata (Rating, Price, Phone, Hours JSON, category tags)
+ * from a MySQL description field, returning clean prose or null.
+ */
+export function cleanScrapedDescription(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  const lines = raw.split(/\n|\r/).map((l) => l.trim()).filter(Boolean);
+  const cleaned = lines.filter((line) => {
+    // Drop lines that are clearly scraper metadata
+    if (/^(Rating|Price|Phone|Hours|Address|Website|Email):/i.test(line)) return false;
+    // Drop lines that look like a JSON blob
+    if (/^[{\[]/.test(line)) return false;
+    // Drop short comma-separated tag lists (e.g. "bar, establishment, food")
+    if (/^[a-z_,\s]+$/.test(line) && line.includes(",")) return false;
+    return true;
+  });
+  return cleaned.join("\n").trim() || null;
+}

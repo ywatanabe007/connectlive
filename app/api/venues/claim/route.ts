@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
-import { getPool, markVenueAsClaimed, convertOperatingHours } from "@/lib/mysql-sync";
+import { getPool, markVenueAsClaimed, convertOperatingHours, cleanScrapedDescription } from "@/lib/mysql-sync";
 
 const VENUE_TABLE = process.env.MYSQL_VENUE_TABLE ?? "tbl_venues";
 
@@ -44,7 +44,7 @@ export async function POST(req: Request) {
     const phone       = (r.phone ?? r.phone_number ?? body.phone ?? null)?.trim() || null;
     const website     = (r.event_url ?? r.website ?? r.url ?? body.website ?? null)?.trim() || null;
     const imageUrl    = (r.image_url ?? r.photo_url ?? r.cover_image ?? body.imageUrl ?? null)?.trim() || null;
-    const description = (r.description ?? r.about ?? body.description ?? null)?.trim() || null;
+    const description = cleanScrapedDescription(r.description ?? r.about ?? body.description ?? null);
     const businessType       = (r.business_type ?? r.event_type ?? r.type ?? body.businessType ?? null) || null;
     const experienceCategory = (r.experience_category ?? r.category ?? body.experienceCategory ?? null) || null;
     const groupFriendly      = r.group_friendly === "Yes" || r.group_friendly === 1 || r.group_friendly === true || body.groupFriendly === true;
