@@ -263,7 +263,7 @@ export type ClaimableVenue = {
 };
 
 /**
- * Search for unclaimed venues (source = 'ConnectLive') by name and optional city.
+ * Search for unclaimed venues (excludes source = 'partner_portal') by name and optional city.
  */
 export async function searchClaimableVenues(
   name: string,
@@ -271,7 +271,7 @@ export async function searchClaimableVenues(
 ): Promise<ClaimableVenue[]> {
   const pool = getPool();
 
-  let sql = `SELECT * FROM \`${VENUE_TABLE}\` WHERE source = 'ConnectLive' AND (event_title LIKE ? OR location_name LIKE ?)`;
+  let sql = `SELECT * FROM \`${VENUE_TABLE}\` WHERE (source IS NULL OR source != 'partner_portal') AND (event_title LIKE ? OR location_name LIKE ?)`;
   const params: string[] = [`%${name}%`, `%${name}%`];
 
   if (city?.trim()) {
