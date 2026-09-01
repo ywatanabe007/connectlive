@@ -107,6 +107,46 @@ export default function SettingsPage() {
     setSaving(false);
   }
 
+  async function resizeAndCrop(file: File): Promise<Blob> {
+    const TARGET_W = 1040;
+    const TARGET_H = 1000;
+    const TARGET_RATIO = TARGET_W / TARGET_H; // 1.04
+
+    return new Promise((resolve, reject) => {
+      const img = new window.Image();
+      img.onload = () => {
+        const srcRatio = img.width / img.height;
+
+        // Determine crop region (center crop to target ratio)
+        let cropW: number, cropH: number;
+        if (srcRatio > TARGET_RATIO) {
+          // Image is wider than needed — crop sides
+          cropH = img.height;
+          cropW = Math.round(img.height * TARGET_RATIO);
+        } else {
+          // Image is taller than needed — crop top/bottom
+          cropW = img.width;
+          cropH = Math.round(img.width / TARGET_RATIO);
+        }
+        const cropX = Math.round((img.width - cropW) / 2);
+        const cropY = Math.round((img.height - cropH) / 2);
+
+        const canvas = document.createElement("canvas");
+        canvas.width = TARGET_W;
+        canvas.height = TARGET_H;
+        const ctx = canvas.getContext("2d")!;
+        ctx.drawImage(img, cropX, cropY, cropW, cropH, 0, 0, TARGET_W, TARGET_H);
+        canvas.toBlob(
+          (blob) => blob ? resolve(blob) : reject(new Error("Canvas export failed")),
+          "image/jpeg",
+          0.92
+        );
+      };
+      img.onerror = reject;
+      img.src = URL.createObjectURL(file);
+    });
+  }
+
   async function processImageFile(file: File) {
     setUploadError("");
 
@@ -117,31 +157,26 @@ export default function SettingsPage() {
       return;
     }
 
-    // Size check (5 MB)
+    // Size check (5 MB) — before resize
     if (file.size > 5 * 1024 * 1024) {
       setUploadError("Image must be 5 MB or smaller.");
       return;
     }
 
-    // Aspect ratio check (1.04:1 ± 5%)
-    const ratio = await new Promise<number>((resolve) => {
-      const img = new window.Image();
-      img.onload = () => resolve(img.width / img.height);
-      img.src = URL.createObjectURL(file);
-    });
-    const target = 1.04;
-    const tolerance = 0.05;
-    if (Math.abs(ratio - target) > tolerance) {
-      setUploadError(
-        `Image ratio must be approximately 1.04:1 (yours is ${ratio.toFixed(2)}:1). ` +
-        `Try cropping to roughly 1040 × 1000 px.`
-      );
+    setUploading(true);
+
+    // Auto crop + resize to 1040×1000 (1.04:1)
+    let uploadFile: File | Blob = file;
+    try {
+      uploadFile = await resizeAndCrop(file);
+    } catch {
+      setUploadError("Could not process image. Please try a different file.");
+      setUploading(false);
       return;
     }
 
-    setUploading(true);
     const fd = new FormData();
-    fd.append("file", file);
+    fd.append("file", uploadFile, "venue-image.jpg");
     const res = await fetch("/api/upload", { method: "POST", body: fd });
     const data = await res.json();
     if (res.ok) {
@@ -341,7 +376,7 @@ export default function SettingsPage() {
                   <span className="text-sm font-medium text-purple-600">
                     {form.imageUrl ? "Replace image" : "Upload venue image"}
                   </span>
-                  <span className="text-xs" style={{ color: "var(--muted)" }}>JPEG preferred · PNG or WebP ok · max 5 MB · ratio 1.04:1</span>
+                  <span className="text-xs" style={{ color: "var(--muted)" }}>JPEG preferred · PNG or WebP ok · max 5 MB · auto-cropped to 1040 × 1000</span>
                 </>
               )}
             </div>
