@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense, useState } from "react";
-import { signIn, useSession } from "next-auth/react";
+import { signIn, signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Search, CheckCircle2, X } from "lucide-react";
@@ -26,7 +26,6 @@ type ClaimableVenue = {
 
 function SignupForm() {
   const router = useRouter();
-  const { update: updateSession } = useSession() ?? {};
   const [form, setForm] = useState({ name: "", email: "", password: "" });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -112,17 +111,22 @@ function SignupForm() {
       });
 
       if (!claimRes.ok) {
-        // Claim failed — still send them to onboarding to complete manually
-        router.push("/onboarding");
+        // Claim failed — go to onboarding to complete manually
+        window.location.href = "/onboarding";
         return;
       }
 
-      // Refresh session so the new VENUE_OWNER role is reflected in the JWT,
-      // then hard-navigate so the middleware reads the updated cookie.
-      if (updateSession) await updateSession();
+      // Sign out then sign back in so the new JWT has VENUE_OWNER role.
+      // updateSession() alone doesn't reliably rewrite the cookie the middleware reads.
+      await signOut({ redirect: false });
+      await signIn("credentials", {
+        email: form.email,
+        password: form.password,
+        redirect: false,
+      });
       window.location.href = "/dashboard";
     } else {
-      router.push("/onboarding");
+      window.location.href = "/onboarding";
     }
   }
 
