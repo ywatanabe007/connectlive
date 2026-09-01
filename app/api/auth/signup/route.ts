@@ -77,14 +77,14 @@ export async function POST(req: Request) {
           const lat = typeof r.latitude === "number" ? r.latitude : typeof r.lat === "number" ? r.lat : 0;
           const lng = typeof r.longitude === "number" ? r.longitude : typeof r.lng === "number" ? r.lng : typeof r.lon === "number" ? r.lon : 0;
 
-          if (!venueName || !address || !city || !state || !zip) {
-            console.error(`[signup] Missing required venue fields: name=${venueName} address=${address} city=${city} state=${state} zip=${zip}`);
+          if (!venueName || !address || !city || !state) {
+            console.error(`[signup] Missing required venue fields: name=${venueName} address=${address} city=${city} state=${state}`);
             return NextResponse.json(
-              { id: user.id, email: user.email, venueClaimed: false, claimError: `Missing fields: name=${venueName} addr=${address} city=${city} state=${state} zip=${zip}` },
+              { id: user.id, email: user.email, venueClaimed: false, claimError: `Missing fields: name=${venueName} addr=${address} city=${city} state=${state}` },
               { status: 201 }
             );
           }
-          if (venueName && address && city && state && zip) {
+          if (venueName && address && city && state) {
             const venue = await db.venue.create({
               data: {
                 ownerId: user.id,

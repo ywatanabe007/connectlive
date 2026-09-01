@@ -51,7 +51,7 @@ export async function POST(req: Request) {
     const lat = typeof r.latitude === "number" ? r.latitude : typeof r.lat === "number" ? r.lat : (body.lat ?? 0);
     const lng = typeof r.longitude === "number" ? r.longitude : typeof r.lng === "number" ? r.lng : typeof r.lon === "number" ? r.lon : (body.lng ?? 0);
 
-    if (!name || !address || !city || !state || !zip) {
+    if (!name || !address || !city || !state) {
       return NextResponse.json({ error: "Missing required venue fields." }, { status: 400 });
     }
 
