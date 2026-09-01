@@ -30,12 +30,11 @@ export default auth((req) => {
     return NextResponse.next();
   }
 
-  const venueRoutes = ["/dashboard", "/incentives", "/events", "/settings"];
-  if (venueRoutes.some((r) => pathname.startsWith(r))) {
-    if (role !== "VENUE_OWNER") {
-      return NextResponse.redirect(new URL("/onboarding", req.url));
-    }
-  }
+  // Venue routes only require authentication — role/venue checks happen in the
+  // pages themselves. We cannot reliably check role here because middleware runs
+  // in the edge runtime where Prisma is unavailable, so the JWT role may be
+  // stale immediately after a venue claim.
+  // (The session check above already handles unauthenticated users.)
 
   if (pathname.startsWith("/admin") && role !== "ADMIN") {
     return NextResponse.redirect(new URL("/login", req.url));
