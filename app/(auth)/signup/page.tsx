@@ -110,14 +110,11 @@ function SignupForm() {
         body: JSON.stringify(selectedVenue),
       });
 
-      if (!claimRes.ok) {
-        // Claim failed — go to onboarding to complete manually
-        window.location.href = "/onboarding";
-        return;
-      }
-
-      // The JWT callback now always re-fetches role from DB, so the next
-      // request will carry VENUE_OWNER automatically. Just navigate.
+      // Always go to dashboard regardless of claim result.
+      // If the claim succeeded the dashboard shows the venue.
+      // If it failed (session race, 409 already-claimed, etc.) the dashboard
+      // page queries the DB itself and redirects to /onboarding only if
+      // truly no venue exists — so we never get stuck here.
       window.location.href = "/dashboard";
     } else {
       window.location.href = "/onboarding";
