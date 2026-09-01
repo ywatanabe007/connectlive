@@ -62,6 +62,16 @@ export async function POST(req: Request) {
           );
         }
         if (r) {
+          // Temporary: log all column names and relevant field values
+          console.log("[signup] MySQL row columns:", Object.keys(r).join(", "));
+          console.log("[signup] Relevant fields:", JSON.stringify({
+            event_title: r.event_title, location_name: r.location_name, name: r.name,
+            business_type: r.business_type, type: r.type,
+            experience_category: r.experience_category, category: r.category,
+            image_url: r.image_url, photo_url: r.photo_url, cover_image: r.cover_image,
+            has_incentives_json: !!r.incentives_json,
+          }));
+
           const venueName        = (r.event_title ?? r.location_name ?? r.name ?? "").trim();
           const address          = (r.address ?? r.street_address ?? "").trim();
           const city             = (r.city ?? "").trim();
