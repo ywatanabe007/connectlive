@@ -1,13 +1,8 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/auth";
 import { searchClaimableVenues } from "@/lib/mysql-sync";
 
+// Public endpoint — no auth required (read-only search of venue names/addresses)
 export async function GET(req: Request) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
   const { searchParams } = new URL(req.url);
   const name = searchParams.get("name")?.trim();
   const city = searchParams.get("city")?.trim();

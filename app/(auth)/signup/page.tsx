@@ -4,6 +4,25 @@ import { Suspense, useState } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { Search, CheckCircle2, X } from "lucide-react";
+
+type ClaimableVenue = {
+  mysqlId: number;
+  name: string;
+  address: string;
+  city: string;
+  state: string;
+  zip: string;
+  phone: string | null;
+  website: string | null;
+  imageUrl: string | null;
+  description: string | null;
+  businessType: string | null;
+  experienceCategory: string | null;
+  groupFriendly: boolean;
+  lat: number | null;
+  lng: number | null;
+};
 
 function SignupForm() {
   const router = useRouter();
@@ -11,8 +30,39 @@ function SignupForm() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
+  // Venue search state
+  const [searchName, setSearchName] = useState("");
+  const [searchCity, setSearchCity] = useState("");
+  const [searching, setSearching] = useState(false);
+  const [searchResults, setSearchResults] = useState<ClaimableVenue[] | null>(null);
+  const [selectedVenue, setSelectedVenue] = useState<ClaimableVenue | null>(null);
+  const [searchError, setSearchError] = useState("");
+
   const inputCls =
     "w-full px-4 py-2.5 rounded-xl border text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/40 transition-all";
+  const inputStyle = { background: "var(--bg)", borderColor: "var(--border)", color: "var(--fg)" };
+
+  async function handleSearch() {
+    if (searchName.trim().length < 2) {
+      setSearchError("Please enter at least 2 characters.");
+      return;
+    }
+    setSearching(true);
+    setSearchError("");
+    setSearchResults(null);
+    try {
+      const params = new URLSearchParams({ name: searchName.trim() });
+      if (searchCity.trim()) params.set("city", searchCity.trim());
+      const res = await fetch(`/api/venues/search?${params}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setSearchResults(data);
+      if (data.length === 0) setSearchError("No venues found. You can still sign up and set up your venue manually.");
+    } catch {
+      setSearchError("Search failed. Please try again.");
+    }
+    setSearching(false);
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -25,6 +75,7 @@ function SignupForm() {
       return;
     }
 
+    // 1. Create account
     const res = await fetch("/api/auth/signup", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -38,7 +89,7 @@ function SignupForm() {
       return;
     }
 
-    // Auto sign-in after signup
+    // 2. Auto sign-in
     const result = await signIn("credentials", {
       email: form.email,
       password: form.password,
@@ -48,16 +99,32 @@ function SignupForm() {
     if (result?.error) {
       setError("Account created! Please sign in.");
       router.push("/login");
+      return;
+    }
+
+    // 3. If a venue was selected, claim it now
+    if (selectedVenue) {
+      const claimRes = await fetch("/api/venues/claim", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(selectedVenue),
+      });
+
+      if (!claimRes.ok) {
+        // Claim failed — still send them to onboarding to complete manually
+        router.push("/onboarding");
+        return;
+      }
+
+      // Claimed successfully — go straight to dashboard
+      router.push("/dashboard");
     } else {
       router.push("/onboarding");
     }
   }
 
   return (
-    <div
-      className="min-h-screen flex items-center justify-center p-4"
-      style={{ background: "var(--bg)" }}
-    >
+    <div className="min-h-screen flex items-center justify-center p-4" style={{ background: "var(--bg)" }}>
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="text-center mb-8">
@@ -83,9 +150,7 @@ function SignupForm() {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium mb-1.5" style={{ color: "var(--fg)" }}>
-                Full name
-              </label>
+              <label className="block text-sm font-medium mb-1.5" style={{ color: "var(--fg)" }}>Full name</label>
               <input
                 type="text"
                 value={form.name}
@@ -94,14 +159,12 @@ function SignupForm() {
                 autoComplete="name"
                 placeholder="Jane Smith"
                 className={inputCls}
-                style={{ background: "var(--bg)", borderColor: "var(--border)", color: "var(--fg)" }}
+                style={inputStyle}
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-1.5" style={{ color: "var(--fg)" }}>
-                Email
-              </label>
+              <label className="block text-sm font-medium mb-1.5" style={{ color: "var(--fg)" }}>Email</label>
               <input
                 type="email"
                 value={form.email}
@@ -110,14 +173,12 @@ function SignupForm() {
                 autoComplete="email"
                 placeholder="you@venue.com"
                 className={inputCls}
-                style={{ background: "var(--bg)", borderColor: "var(--border)", color: "var(--fg)" }}
+                style={inputStyle}
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-1.5" style={{ color: "var(--fg)" }}>
-                Password
-              </label>
+              <label className="block text-sm font-medium mb-1.5" style={{ color: "var(--fg)" }}>Password</label>
               <input
                 type="password"
                 value={form.password}
@@ -127,8 +188,110 @@ function SignupForm() {
                 minLength={8}
                 placeholder="8+ characters"
                 className={inputCls}
-                style={{ background: "var(--bg)", borderColor: "var(--border)", color: "var(--fg)" }}
+                style={inputStyle}
               />
+            </div>
+
+            {/* Venue search section */}
+            <div
+              className="rounded-xl border p-4 space-y-3"
+              style={{ borderColor: "var(--border)", background: "var(--bg)" }}
+            >
+              <div>
+                <p className="text-sm font-semibold" style={{ color: "var(--fg)" }}>
+                  Is your venue already on ConnectLive?
+                </p>
+                <p className="text-xs mt-0.5" style={{ color: "var(--muted)" }}>
+                  Search to claim your existing profile and skip manual setup.
+                </p>
+              </div>
+
+              {/* Show selected venue */}
+              {selectedVenue ? (
+                <div
+                  className="flex items-center justify-between gap-3 p-3 rounded-lg border border-emerald-300 bg-emerald-50"
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-500 flex-shrink-0" />
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-emerald-800 truncate">{selectedVenue.name}</p>
+                      <p className="text-xs text-emerald-600 truncate">{selectedVenue.city}, {selectedVenue.state}</p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => { setSelectedVenue(null); setSearchResults(null); }}
+                    className="text-emerald-600 hover:text-emerald-800 flex-shrink-0"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={searchName}
+                      onChange={(e) => setSearchName(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), handleSearch())}
+                      placeholder="Venue name"
+                      className="flex-1 px-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/40"
+                      style={inputStyle}
+                    />
+                    <input
+                      type="text"
+                      value={searchCity}
+                      onChange={(e) => setSearchCity(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), handleSearch())}
+                      placeholder="City"
+                      className="w-28 px-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/40"
+                      style={inputStyle}
+                    />
+                    <button
+                      type="button"
+                      onClick={handleSearch}
+                      disabled={searching}
+                      className="px-3 py-2 rounded-lg bg-purple-600 text-white hover:bg-purple-700 transition-colors disabled:opacity-50 flex-shrink-0"
+                    >
+                      <Search className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  {searchError && (
+                    <p className="text-xs" style={{ color: "var(--muted)" }}>{searchError}</p>
+                  )}
+
+                  {searchResults && searchResults.length > 0 && (
+                    <div className="space-y-2 max-h-48 overflow-y-auto">
+                      {searchResults.map((v) => (
+                        <div
+                          key={v.mysqlId}
+                          className="flex items-center justify-between gap-3 p-3 rounded-lg border cursor-pointer hover:border-purple-400 transition-colors"
+                          style={{ borderColor: "var(--border)" }}
+                        >
+                          <div className="flex items-center gap-2 min-w-0">
+                            {v.imageUrl && (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={v.imageUrl} alt={v.name} className="w-10 h-10 rounded-lg object-cover flex-shrink-0" />
+                            )}
+                            <div className="min-w-0">
+                              <p className="text-sm font-medium truncate" style={{ color: "var(--fg)" }}>{v.name}</p>
+                              <p className="text-xs truncate" style={{ color: "var(--muted)" }}>{v.city}, {v.state}</p>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => { setSelectedVenue(v); setSearchResults(null); }}
+                            className="flex-shrink-0 px-3 py-1 rounded-lg text-xs font-semibold text-white bg-purple-600 hover:bg-purple-700 transition-colors"
+                          >
+                            Select
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
             </div>
 
             <button
@@ -136,7 +299,9 @@ function SignupForm() {
               disabled={loading}
               className="w-full py-2.5 px-4 rounded-xl font-semibold text-white bg-gradient-to-r from-purple-600 to-fuchsia-500 hover:opacity-90 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-md mt-2"
             >
-              {loading ? "Creating account…" : "Create free account"}
+              {loading
+                ? selectedVenue ? "Creating & claiming venue…" : "Creating account…"
+                : selectedVenue ? "Create account & claim venue" : "Create free account"}
             </button>
           </form>
 
