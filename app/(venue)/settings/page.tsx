@@ -109,8 +109,42 @@ export default function SettingsPage() {
   async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    setUploading(true);
+
     setUploadError("");
+
+    // Format check
+    const allowed = ["image/jpeg", "image/png", "image/webp"];
+    if (!allowed.includes(file.type)) {
+      setUploadError("Please upload a JPEG, PNG, or WebP image.");
+      e.target.value = "";
+      return;
+    }
+
+    // Size check (5 MB)
+    if (file.size > 5 * 1024 * 1024) {
+      setUploadError("Image must be 5 MB or smaller.");
+      e.target.value = "";
+      return;
+    }
+
+    // Aspect ratio check (1.04:1 ± 5%)
+    const ratio = await new Promise<number>((resolve) => {
+      const img = new window.Image();
+      img.onload = () => resolve(img.width / img.height);
+      img.src = URL.createObjectURL(file);
+    });
+    const target = 1.04;
+    const tolerance = 0.05;
+    if (Math.abs(ratio - target) > tolerance) {
+      setUploadError(
+        `Image ratio must be approximately 1.04:1 (yours is ${ratio.toFixed(2)}:1). ` +
+        `Try cropping to roughly 1040 × 1000 px.`
+      );
+      e.target.value = "";
+      return;
+    }
+
+    setUploading(true);
     const fd = new FormData();
     fd.append("file", file);
     const res = await fetch("/api/upload", { method: "POST", body: fd });
@@ -283,13 +317,13 @@ export default function SettingsPage() {
                   <span className="text-sm font-medium text-purple-600">
                     {form.imageUrl ? "Replace image" : "Upload venue image"}
                   </span>
-                  <span className="text-xs" style={{ color: "var(--muted)" }}>PNG, JPG, WebP · max 5 MB</span>
+                  <span className="text-xs" style={{ color: "var(--muted)" }}>JPEG preferred · PNG or WebP ok · max 5 MB · ratio 1.04:1</span>
                 </>
               )}
             </div>
             <input
               type="file"
-              accept="image/png,image/jpeg,image/webp,image/gif"
+              accept="image/jpeg,image/png,image/webp"
               className="hidden"
               onChange={handleImageUpload}
               disabled={uploading}
