@@ -240,6 +240,93 @@ export async function removeVenueFromMySQL(partnerPortalId: string): Promise<voi
 }
 
 // ---------------------------------------------------------------------------
+// Venue claim helpers
+// ---------------------------------------------------------------------------
+
+export type ClaimableVenue = {
+  mysqlId: number;
+  sourceEventId: string | null;
+  name: string;
+  address: string;
+  city: string;
+  state: string;
+  zip: string;
+  phone: string | null;
+  website: string | null;
+  imageUrl: string | null;
+  description: string | null;
+  businessType: string | null;
+  experienceCategory: string | null;
+  groupFriendly: boolean;
+  lat: number | null;
+  lng: number | null;
+};
+
+/**
+ * Search for unclaimed venues (source = 'ConnectLive') by name and optional city.
+ */
+export async function searchClaimableVenues(
+  name: string,
+  city?: string
+): Promise<ClaimableVenue[]> {
+  const pool = getPool();
+
+  let sql = `
+    SELECT id, source_event_id, event_title, location_name, address, city, state, zip_code,
+           phone, event_url, image_url, description,
+           business_type, experience_category, group_friendly,
+           latitude, longitude
+    FROM \`${VENUE_TABLE}\`
+    WHERE source = 'ConnectLive'
+      AND (event_title LIKE ? OR location_name LIKE ?)
+  `;
+  const params: string[] = [`%${name}%`, `%${name}%`];
+
+  if (city?.trim()) {
+    sql += ` AND city LIKE ?`;
+    params.push(`%${city.trim()}%`);
+  }
+
+  sql += ` LIMIT 10`;
+
+  const [rows] = await pool.execute<mysql.RowDataPacket[]>(sql, params);
+
+  return rows.map((r) => ({
+    mysqlId: r.id as number,
+    sourceEventId: r.source_event_id as string | null,
+    name: ((r.event_title ?? r.location_name ?? "") as string),
+    address: (r.address ?? "") as string,
+    city: (r.city ?? "") as string,
+    state: (r.state ?? "") as string,
+    zip: (r.zip_code ?? "") as string,
+    phone: r.phone as string | null,
+    website: r.event_url as string | null,
+    imageUrl: r.image_url as string | null,
+    description: r.description as string | null,
+    businessType: r.business_type as string | null,
+    experienceCategory: r.experience_category as string | null,
+    groupFriendly: r.group_friendly === "Yes",
+    lat: r.latitude as number | null,
+    lng: r.longitude as number | null,
+  }));
+}
+
+/**
+ * Mark a scraped venue row as claimed by the partner portal.
+ * Updates source → 'partner_portal' and source_event_id → the new Neon venue ID.
+ */
+export async function markVenueAsClaimed(
+  mysqlId: number,
+  portalVenueId: string
+): Promise<void> {
+  const pool = getPool();
+  await pool.execute(
+    `UPDATE \`${VENUE_TABLE}\` SET source = 'partner_portal', source_event_id = ? WHERE id = ?`,
+    [portalVenueId, mysqlId]
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Event types
 // ---------------------------------------------------------------------------
 
