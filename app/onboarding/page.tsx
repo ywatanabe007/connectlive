@@ -65,16 +65,16 @@ export default function OnboardingPage() {
   const session = useSession();
   const update = session?.update;
 
-  // Redirect to dashboard if venue already exists (e.g. claimed during signup)
-  // Also refresh the session so the VENUE_OWNER role is in the JWT before navigating.
+  // Redirect to dashboard if venue already exists (e.g. claimed during signup).
+  // Use a hard navigation after session update so the middleware reads the refreshed JWT cookie.
   useEffect(() => {
     fetch("/api/venues/mine").then(async (r) => {
       if (r.ok) {
         if (update) await update();
-        router.replace("/dashboard");
+        window.location.href = "/dashboard";
       }
     });
-  }, [router, update]);
+  }, [update]);
 
   // step 0 = claim search, 1-3 = manual flow
   const [step, setStep] = useState(0);

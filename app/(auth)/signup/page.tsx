@@ -117,9 +117,10 @@ function SignupForm() {
         return;
       }
 
-      // Refresh session so the new VENUE_OWNER role is reflected in the JWT
+      // Refresh session so the new VENUE_OWNER role is reflected in the JWT,
+      // then hard-navigate so the middleware reads the updated cookie.
       if (updateSession) await updateSession();
-      router.push("/dashboard");
+      window.location.href = "/dashboard";
     } else {
       router.push("/onboarding");
     }
