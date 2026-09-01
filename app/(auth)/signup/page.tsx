@@ -26,7 +26,7 @@ type ClaimableVenue = {
 
 function SignupForm() {
   const router = useRouter();
-  const { update: updateSession } = useSession();
+  const { update: updateSession } = useSession() ?? {};
   const [form, setForm] = useState({ name: "", email: "", password: "" });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -118,7 +118,7 @@ function SignupForm() {
       }
 
       // Refresh session so the new VENUE_OWNER role is reflected in the JWT
-      await updateSession();
+      if (updateSession) await updateSession();
       router.push("/dashboard");
     } else {
       router.push("/onboarding");
