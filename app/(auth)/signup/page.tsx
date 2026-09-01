@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense, useState } from "react";
-import { signIn } from "next-auth/react";
+import { signIn, useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Search, CheckCircle2, X } from "lucide-react";
@@ -26,6 +26,7 @@ type ClaimableVenue = {
 
 function SignupForm() {
   const router = useRouter();
+  const { update: updateSession } = useSession();
   const [form, setForm] = useState({ name: "", email: "", password: "" });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -116,7 +117,8 @@ function SignupForm() {
         return;
       }
 
-      // Claimed successfully — go straight to dashboard
+      // Refresh session so the new VENUE_OWNER role is reflected in the JWT
+      await updateSession();
       router.push("/dashboard");
     } else {
       router.push("/onboarding");
