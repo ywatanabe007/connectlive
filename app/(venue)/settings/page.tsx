@@ -51,6 +51,7 @@ export default function SettingsPage() {
   const [error, setError] = useState("");
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState("");
+  const [isDragging, setIsDragging] = useState(false);
 
   useEffect(() => {
     fetch("/api/venues/mine")
@@ -106,24 +107,19 @@ export default function SettingsPage() {
     setSaving(false);
   }
 
-  async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
+  async function processImageFile(file: File) {
     setUploadError("");
 
     // Format check
     const allowed = ["image/jpeg", "image/png", "image/webp"];
     if (!allowed.includes(file.type)) {
       setUploadError("Please upload a JPEG, PNG, or WebP image.");
-      e.target.value = "";
       return;
     }
 
     // Size check (5 MB)
     if (file.size > 5 * 1024 * 1024) {
       setUploadError("Image must be 5 MB or smaller.");
-      e.target.value = "";
       return;
     }
 
@@ -140,7 +136,6 @@ export default function SettingsPage() {
         `Image ratio must be approximately 1.04:1 (yours is ${ratio.toFixed(2)}:1). ` +
         `Try cropping to roughly 1040 × 1000 px.`
       );
-      e.target.value = "";
       return;
     }
 
@@ -155,7 +150,30 @@ export default function SettingsPage() {
       setUploadError(data.error ?? "Upload failed");
     }
     setUploading(false);
+  }
+
+  async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    await processImageFile(file);
     e.target.value = "";
+  }
+
+  function handleDragOver(e: React.DragEvent) {
+    e.preventDefault();
+    setIsDragging(true);
+  }
+
+  function handleDragLeave() {
+    setIsDragging(false);
+  }
+
+  async function handleDrop(e: React.DragEvent) {
+    e.preventDefault();
+    setIsDragging(false);
+    const file = e.dataTransfer.files?.[0];
+    if (!file || uploading) return;
+    await processImageFile(file);
   }
 
   function updateHours(day: DayOfWeek, field: "open" | "close" | "closed", value: string | boolean) {
@@ -304,7 +322,13 @@ export default function SettingsPage() {
           )}
 
           {/* Upload dropzone */}
-          <label className={`flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-xl cursor-pointer transition-colors ${uploading ? "opacity-60 cursor-wait" : "hover:border-purple-400 hover:bg-purple-50/20"}`} style={{ borderColor: "var(--border)" }}>
+          <label
+            className={`flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-xl cursor-pointer transition-colors ${uploading ? "opacity-60 cursor-wait" : isDragging ? "border-purple-500 bg-purple-50/30" : "hover:border-purple-400 hover:bg-purple-50/20"}`}
+            style={{ borderColor: isDragging ? undefined : "var(--border)" }}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+          >
             <div className="flex flex-col items-center gap-1.5 pointer-events-none">
               {uploading ? (
                 <>
