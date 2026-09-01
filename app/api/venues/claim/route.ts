@@ -45,11 +45,14 @@ export async function POST(req: Request) {
     const website     = (r.event_url ?? r.website ?? r.url ?? body.website ?? null)?.trim() || null;
     const imageUrl    = (r.image_url ?? r.photo_url ?? r.cover_image ?? body.imageUrl ?? null)?.trim() || null;
     const description = (r.description ?? r.about ?? body.description ?? null)?.trim() || null;
-    const businessType       = (r.business_type ?? r.type ?? body.businessType ?? null) || null;
+    const businessType       = (r.business_type ?? r.event_type ?? r.type ?? body.businessType ?? null) || null;
     const experienceCategory = (r.experience_category ?? r.category ?? body.experienceCategory ?? null) || null;
     const groupFriendly      = r.group_friendly === "Yes" || r.group_friendly === 1 || r.group_friendly === true || body.groupFriendly === true;
     const lat = typeof r.latitude === "number" ? r.latitude : typeof r.lat === "number" ? r.lat : (body.lat ?? 0);
     const lng = typeof r.longitude === "number" ? r.longitude : typeof r.lng === "number" ? r.lng : typeof r.lon === "number" ? r.lon : (body.lng ?? 0);
+    const businessHours = r.operating_hours
+      ? (() => { try { return typeof r.operating_hours === "string" ? JSON.parse(r.operating_hours) : r.operating_hours; } catch { return null; } })()
+      : null;
 
     if (!name || !address || !city || !state) {
       return NextResponse.json({ error: "Missing required venue fields." }, { status: 400 });
@@ -74,6 +77,7 @@ export async function POST(req: Request) {
         groupFriendly,
         lat,
         lng,
+        businessHours,
       },
     });
 
@@ -89,7 +93,6 @@ export async function POST(req: Request) {
         const farFuture = new Date(now.getFullYear() + 1, now.getMonth(), now.getDate());
 
         for (const i of incentives) {
-          // Map MySQL incentive fields → Neon Incentive schema
           const title       = (i.title ?? "").trim();
           const description = (i.incentives ?? i.description ?? "").trim();
           if (!title || !description) continue;
@@ -117,8 +120,38 @@ export async function POST(req: Request) {
           });
         }
       } catch (err) {
-        // Non-fatal — venue is still created, incentives just won't import
         console.error("[venues/claim] Failed to import incentives_json:", err);
+      }
+    }
+
+    // If no incentives_json array, fall back to top-level incentive fields
+    if (!incentivesRaw && r.incentives) {
+      const singleDesc = (r.incentives ?? "").trim();
+      if (singleDesc) {
+        const now2 = new Date();
+        const farFuture2 = new Date(now2.getFullYear() + 1, now2.getMonth(), now2.getDate());
+        try {
+          await db.incentive.create({
+            data: {
+              venueId:         venue.id,
+              title:           name || "Special Offer",
+              description:     singleDesc,
+              teaserText:      (r.incentive_hint ?? null)?.trim() || null,
+              category:        r.category ?? r.event_type ?? "Other",
+              validTimes:      r.operating_hours ?? null,
+              recurrence:      "ONE_TIME",
+              startAt:         now2,
+              endAt:           farFuture2,
+              maxRedemptions:  null,
+              redemptionCount: 0,
+              groupFriendly:   false,
+              terms:           null,
+              status:          "ACTIVE",
+            },
+          });
+        } catch (err) {
+          console.error("[venues/claim] Failed to create single incentive from top-level fields:", err);
+        }
       }
     }
 

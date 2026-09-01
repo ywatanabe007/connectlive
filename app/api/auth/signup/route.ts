@@ -62,30 +62,23 @@ export async function POST(req: Request) {
           );
         }
         if (r) {
-          // Temporary: log all column names and relevant field values
-          console.log("[signup] MySQL row columns:", Object.keys(r).join(", "));
-          console.log("[signup] Relevant fields:", JSON.stringify({
-            event_title: r.event_title, location_name: r.location_name, name: r.name,
-            business_type: r.business_type, type: r.type,
-            experience_category: r.experience_category, category: r.category,
-            image_url: r.image_url, photo_url: r.photo_url, cover_image: r.cover_image,
-            has_incentives_json: !!r.incentives_json,
-          }));
-
-          const venueName        = (r.event_title ?? r.location_name ?? r.name ?? "").trim();
-          const address          = (r.address ?? r.street_address ?? "").trim();
-          const city             = (r.city ?? "").trim();
-          const state            = (r.state ?? "").trim().toUpperCase();
-          const zip              = (r.zip_code ?? r.zip ?? r.postal_code ?? "").trim();
-          const phone            = (r.phone ?? r.phone_number ?? null)?.trim() || null;
-          const website          = (r.event_url ?? r.website ?? r.url ?? null)?.trim() || null;
-          const imageUrl         = (r.image_url ?? r.photo_url ?? r.cover_image ?? null)?.trim() || null;
-          const description      = (r.description ?? r.about ?? null)?.trim() || null;
-          const businessType     = (r.business_type ?? r.type ?? null) || null;
+          const venueName          = (r.event_title ?? r.location_name ?? r.name ?? "").trim();
+          const address            = (r.address ?? r.street_address ?? "").trim();
+          const city               = (r.city ?? "").trim();
+          const state              = (r.state ?? "").trim().toUpperCase();
+          const zip                = (r.zip_code ?? r.zip ?? r.postal_code ?? "").trim();
+          const phone              = (r.phone ?? r.phone_number ?? null)?.trim() || null;
+          const website            = (r.event_url ?? r.website ?? r.url ?? null)?.trim() || null;
+          const imageUrl           = (r.image_url ?? r.photo_url ?? r.cover_image ?? null)?.trim() || null;
+          const description        = (r.description ?? r.about ?? null)?.trim() || null;
+          const businessType       = (r.business_type ?? r.event_type ?? r.type ?? null) || null;
           const experienceCategory = (r.experience_category ?? r.category ?? null) || null;
-          const groupFriendly    = r.group_friendly === "Yes" || r.group_friendly === 1 || r.group_friendly === true;
+          const groupFriendly      = r.group_friendly === "Yes" || r.group_friendly === 1 || r.group_friendly === true;
           const lat = typeof r.latitude === "number" ? r.latitude : typeof r.lat === "number" ? r.lat : 0;
           const lng = typeof r.longitude === "number" ? r.longitude : typeof r.lng === "number" ? r.lng : typeof r.lon === "number" ? r.lon : 0;
+          const businessHours = r.operating_hours
+            ? (() => { try { return typeof r.operating_hours === "string" ? JSON.parse(r.operating_hours) : r.operating_hours; } catch { return null; } })()
+            : null;
 
           if (!venueName || !address || !city || !state) {
             console.error(`[signup] Missing required venue fields: name=${venueName} address=${address} city=${city} state=${state}`);
@@ -94,76 +87,103 @@ export async function POST(req: Request) {
               { status: 201 }
             );
           }
-          if (venueName && address && city && state) {
-            const venue = await db.venue.create({
-              data: {
-                ownerId: user.id,
-                name: venueName,
-                type: businessType || "",
-                businessType: businessType || null,
-                experienceCategory: experienceCategory || null,
-                address,
-                city,
-                state,
-                zip,
-                phone,
-                website,
-                imageUrl,
-                description,
-                groupFriendly,
-                lat,
-                lng,
-              },
-            });
 
-            // Import incentives
-            const incentivesRaw = r.incentives_json;
-            if (incentivesRaw) {
-              try {
-                const incentives: any[] = typeof incentivesRaw === "string"
-                  ? JSON.parse(incentivesRaw)
-                  : incentivesRaw;
-                const now = new Date();
-                const farFuture = new Date(now.getFullYear() + 1, now.getMonth(), now.getDate());
-                for (const i of incentives) {
-                  const title       = (i.title ?? "").trim();
-                  const description = (i.incentives ?? i.description ?? "").trim();
-                  if (!title || !description) continue;
-                  const startAt = i.start_date ? new Date(i.start_date) : now;
-                  const endAt   = i.end_date   ? new Date(i.end_date)   : farFuture;
-                  await db.incentive.create({
-                    data: {
-                      venueId:         venue.id,
-                      title,
-                      description,
-                      teaserText:      i.incentive_hint ?? i.teaser ?? null,
-                      category:        i.type ?? i.category ?? "Other",
-                      validTimes:      i.schedule ?? null,
-                      recurrence:      i.recurrence ?? "ONE_TIME",
-                      startAt:         isNaN(startAt.getTime()) ? now : startAt,
-                      endAt:           isNaN(endAt.getTime())   ? farFuture : endAt,
-                      maxRedemptions:  i.max_redemptions ?? null,
-                      redemptionCount: i.redemption_count ?? 0,
-                      groupFriendly:   i.group_friendly === "Yes" || i.group_friendly === true,
-                      terms:           i.terms ?? null,
-                      status:          "ACTIVE",
-                    },
-                  });
-                }
-              } catch (err) {
-                console.error("[signup] Failed to import incentives_json:", err);
+          const venue = await db.venue.create({
+            data: {
+              ownerId: user.id,
+              name: venueName,
+              type: businessType || "",
+              businessType: businessType || null,
+              experienceCategory: experienceCategory || null,
+              address,
+              city,
+              state,
+              zip,
+              phone,
+              website,
+              imageUrl,
+              description,
+              groupFriendly,
+              lat,
+              lng,
+              businessHours,
+            },
+          });
+
+          // Import incentives from incentives_json if present
+          const incentivesRaw = r.incentives_json;
+          if (incentivesRaw) {
+            try {
+              const incentives: any[] = typeof incentivesRaw === "string"
+                ? JSON.parse(incentivesRaw)
+                : incentivesRaw;
+              const now = new Date();
+              const farFuture = new Date(now.getFullYear() + 1, now.getMonth(), now.getDate());
+              for (const i of incentives) {
+                const title       = (i.title ?? "").trim();
+                const description = (i.incentives ?? i.description ?? "").trim();
+                if (!title || !description) continue;
+                const startAt = i.start_date ? new Date(i.start_date) : now;
+                const endAt   = i.end_date   ? new Date(i.end_date)   : farFuture;
+                await db.incentive.create({
+                  data: {
+                    venueId:         venue.id,
+                    title,
+                    description,
+                    teaserText:      i.incentive_hint ?? i.teaser ?? null,
+                    category:        i.type ?? i.category ?? "Other",
+                    validTimes:      i.schedule ?? null,
+                    recurrence:      i.recurrence ?? "ONE_TIME",
+                    startAt:         isNaN(startAt.getTime()) ? now : startAt,
+                    endAt:           isNaN(endAt.getTime())   ? farFuture : endAt,
+                    maxRedemptions:  i.max_redemptions ?? null,
+                    redemptionCount: i.redemption_count ?? 0,
+                    groupFriendly:   i.group_friendly === "Yes" || i.group_friendly === true,
+                    terms:           i.terms ?? null,
+                    status:          "ACTIVE",
+                  },
+                });
               }
+            } catch (err) {
+              console.error("[signup] Failed to import incentives_json:", err);
             }
-
-            // Upgrade role and mark MySQL row as claimed
-            await db.user.update({ where: { id: user.id }, data: { role: "VENUE_OWNER" } });
-            await markVenueAsClaimed(mysqlId, venue.id);
-
-            return NextResponse.json(
-              { id: user.id, email: user.email, venueClaimed: true },
-              { status: 201 }
-            );
           }
+
+          // If no incentives_json array, fall back to top-level incentive fields
+          if (!incentivesRaw && r.incentives) {
+            const singleDesc = (r.incentives ?? "").trim();
+            if (singleDesc) {
+              const now2 = new Date();
+              const farFuture2 = new Date(now2.getFullYear() + 1, now2.getMonth(), now2.getDate());
+              await db.incentive.create({
+                data: {
+                  venueId:        venue.id,
+                  title:          venueName || "Special Offer",
+                  description:    singleDesc,
+                  teaserText:     (r.incentive_hint ?? null)?.trim() || null,
+                  category:       r.category ?? r.event_type ?? "Other",
+                  validTimes:     r.operating_hours ?? null,
+                  recurrence:     "ONE_TIME",
+                  startAt:        now2,
+                  endAt:          farFuture2,
+                  maxRedemptions: null,
+                  redemptionCount: 0,
+                  groupFriendly:  false,
+                  terms:          null,
+                  status:         "ACTIVE",
+                },
+              });
+            }
+          }
+
+          // Upgrade role and mark MySQL row as claimed
+          await db.user.update({ where: { id: user.id }, data: { role: "VENUE_OWNER" } });
+          await markVenueAsClaimed(mysqlId, venue.id);
+
+          return NextResponse.json(
+            { id: user.id, email: user.email, venueClaimed: true },
+            { status: 201 }
+          );
         }
       } catch (err: any) {
         console.error("[signup] Venue claim failed, user created without venue:", err);
