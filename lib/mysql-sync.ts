@@ -430,3 +430,31 @@ export async function removeEventFromMySQL(eventId: string): Promise<void> {
     [eventId]
   );
 }
+
+/**
+ * Convert a Google Places operating_hours object into the partner portal's
+ * BusinessHours format: { monday: { open, close, closed }, ... }
+ * Google uses numeric day indices where 0 = Sunday.
+ */
+export function convertOperatingHours(oh: any): Record<string, { open: string; close: string; closed: boolean }> | null {
+  if (!oh?.days) return null;
+  const dayMap: Record<number, string> = {
+    0: "sunday", 1: "monday", 2: "tuesday", 3: "wednesday",
+    4: "thursday", 5: "friday", 6: "saturday",
+  };
+  const result: Record<string, { open: string; close: string; closed: boolean }> = {};
+  for (const [idx, dayName] of Object.entries(dayMap)) {
+    const d = oh.days[Number(idx)];
+    if (d) {
+      const period = d.periods?.[0];
+      result[dayName] = {
+        open:   period?.open?.slice(0, 5)  ?? "09:00",
+        close:  period?.close?.slice(0, 5) ?? "22:00",
+        closed: d.closed === true,
+      };
+    } else {
+      result[dayName] = { open: "09:00", close: "22:00", closed: false };
+    }
+  }
+  return result;
+}

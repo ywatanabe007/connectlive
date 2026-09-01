@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
-import { getPool, markVenueAsClaimed } from "@/lib/mysql-sync";
+import { getPool, markVenueAsClaimed, convertOperatingHours } from "@/lib/mysql-sync";
 
 const VENUE_TABLE = process.env.MYSQL_VENUE_TABLE ?? "tbl_venues";
 
@@ -50,9 +50,10 @@ export async function POST(req: Request) {
     const groupFriendly      = r.group_friendly === "Yes" || r.group_friendly === 1 || r.group_friendly === true || body.groupFriendly === true;
     const lat = typeof r.latitude === "number" ? r.latitude : typeof r.lat === "number" ? r.lat : (body.lat ?? 0);
     const lng = typeof r.longitude === "number" ? r.longitude : typeof r.lng === "number" ? r.lng : typeof r.lon === "number" ? r.lon : (body.lng ?? 0);
-    const businessHours = r.operating_hours
+    const rawHours = r.operating_hours
       ? (() => { try { return typeof r.operating_hours === "string" ? JSON.parse(r.operating_hours) : r.operating_hours; } catch { return null; } })()
       : null;
+    const businessHours = convertOperatingHours(rawHours);
 
     if (!name || !address || !city || !state) {
       return NextResponse.json({ error: "Missing required venue fields." }, { status: 400 });

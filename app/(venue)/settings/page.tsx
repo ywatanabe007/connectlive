@@ -74,7 +74,7 @@ export default function SettingsPage() {
           groupFriendly: data.groupFriendly ?? false,
           timeZone: data.timeZone ?? "",
         });
-        if (data.businessHours) {
+        if (data.businessHours && data.businessHours.monday) {
           setHours(data.businessHours as BusinessHours);
         }
         setLoading(false);
