@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense, useState } from "react";
-import { signIn, signOut } from "next-auth/react";
+import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Search, CheckCircle2, X } from "lucide-react";
@@ -116,14 +116,8 @@ function SignupForm() {
         return;
       }
 
-      // Sign out then sign back in so the new JWT has VENUE_OWNER role.
-      // updateSession() alone doesn't reliably rewrite the cookie the middleware reads.
-      await signOut({ redirect: false });
-      await signIn("credentials", {
-        email: form.email,
-        password: form.password,
-        redirect: false,
-      });
+      // The JWT callback now always re-fetches role from DB, so the next
+      // request will carry VENUE_OWNER automatically. Just navigate.
       window.location.href = "/dashboard";
     } else {
       window.location.href = "/onboarding";

@@ -27,13 +27,14 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     }),
   ],
   callbacks: {
-    async jwt({ token, user, trigger }) {
+    async jwt({ token, user }) {
       if (user) {
+        // Initial sign-in: persist the user id into the token
         token.id = user.id ?? "";
-        token.role = (user as { role?: string }).role;
       }
-      // Re-fetch role from DB when session is updated (e.g. after onboarding)
-      if (trigger === "update" && token.id) {
+      // Always re-fetch role from DB so any role change (e.g. venue claim)
+      // is reflected on the very next request — no manual session refresh needed.
+      if (token.id) {
         const dbUser = await db.user.findUnique({
           where: { id: token.id as string },
           select: { role: true },
