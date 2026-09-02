@@ -90,6 +90,76 @@ type PortalVenue = {
 };
 
 // ---------------------------------------------------------------------------
+// Exported helpers used by signup/claim routes
+// ---------------------------------------------------------------------------
+
+/**
+ * Convert Google Places operating_hours format:
+ *   { days: { 0: { periods: [{open:"HH:MM", close:"HH:MM"}] }, ... } }
+ * to the portal's BusinessHours format:
+ *   { monday: { open, close, closed }, ... }
+ * Google day 0 = Sunday.
+ */
+export function convertOperatingHours(raw: any): Record<string, { open: string; close: string; closed: boolean }> | null {
+  if (!raw) return null;
+  const days = raw.days ?? raw;
+  if (typeof days !== "object") return null;
+
+  const dayNames = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
+  const result: Record<string, { open: string; close: string; closed: boolean }> = {};
+
+  for (let i = 0; i < 7; i++) {
+    const name = dayNames[i];
+    const entry = days[i] ?? days[String(i)];
+    if (!entry || entry.closed || !entry.periods?.length) {
+      result[name] = { open: "09:00", close: "22:00", closed: true };
+    } else {
+      const period = entry.periods[0];
+      result[name] = {
+        open: period.open ?? "09:00",
+        close: period.close ?? "22:00",
+        closed: false,
+      };
+    }
+  }
+  return result;
+}
+
+/**
+ * Strip scraper metadata lines from a venue description so only human-readable
+ * prose remains. Returns null when nothing meaningful is left.
+ */
+export function cleanScrapedDescription(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+
+  const junkPatterns = [
+    /^Rating:\s*/i,
+    /^Price:\s*/i,
+    /^Phone:\s*/i,
+    /^Hours:\s*/i,
+    /^Address:\s*/i,
+    /^Website:\s*/i,
+    /^\{.*\}$/,          // JSON blob lines
+    /^\[.*\]$/,          // JSON array lines
+  ];
+
+  const lines = raw
+    .split("\n")
+    .map((l) => l.trim())
+    .filter((l) => {
+      if (!l) return false;
+      if (junkPatterns.some((p) => p.test(l))) return false;
+      // Short comma-separated tag lists (≤4 words per segment, ≥2 segments)
+      const parts = l.split(",");
+      if (parts.length >= 2 && parts.every((p) => p.trim().split(/\s+/).length <= 4)) return false;
+      return true;
+    });
+
+  const cleaned = lines.join("\n").trim();
+  return cleaned || null;
+}
+
+// ---------------------------------------------------------------------------
 // Field transformers
 // ---------------------------------------------------------------------------
 
