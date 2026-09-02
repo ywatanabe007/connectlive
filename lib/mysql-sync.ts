@@ -212,14 +212,47 @@ export async function syncVenueToMySQL(
   };
 
   // UPDATE the existing row keyed on source_event_id (set by markVenueAsClaimed).
-  // We avoid INSERT…ON DUPLICATE KEY because source_event_id may not be a UNIQUE index.
-  const { source_event_id, ...updateFields } = row;
-  const setClauses = Object.keys(updateFields)
-    .map((c) => `\`${c}\` = ?`)
-    .join(", ");
+  // We only update columns we know exist in the scraped table.
+  const knownColumns: (keyof typeof row)[] = [
+    "source",
+    "event_title",
+    "location_name",
+    "address",
+    "city",
+    "state",
+    "zip_code",
+    "latitude",
+    "longitude",
+    "business_type",
+    "experience_category",
+    "group_friendly",
+    "description",
+    "event_url",
+    "image_url",
+    "operating_hours",
+    "incentives",
+    "incentive_hint",
+    "incentives_json",
+    "date_updated",
+  ];
+
+  const setClauses = knownColumns.map((c) => `\`${c}\` = ?`).join(", ");
+  const values = knownColumns.map((c) => (row as any)[c]);
+
+  // Diagnostic: check if the row exists first
+  const [checkRows] = await pool.execute<any[]>(
+    `SELECT id, source_event_id FROM \`${VENUE_TABLE}\` WHERE source_event_id = ? LIMIT 1`,
+    [row.source_event_id]
+  );
+  if (!checkRows.length) {
+    console.error(`[mysql-sync] No MySQL row found with source_event_id=${row.source_event_id} — sync skipped`);
+    return;
+  }
+  console.log(`[mysql-sync] Found MySQL row id=${checkRows[0].id} for source_event_id=${row.source_event_id}`);
 
   const sql = `UPDATE \`${VENUE_TABLE}\` SET ${setClauses} WHERE source_event_id = ?`;
-  await pool.execute(sql, [...Object.values(updateFields), source_event_id]);
+  const [result] = await pool.execute(sql, [...values, row.source_event_id]) as any;
+  console.log(`[mysql-sync] UPDATE done: affectedRows=${result?.affectedRows}`);
 }
 
 /**

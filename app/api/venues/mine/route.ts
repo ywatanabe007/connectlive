@@ -127,12 +127,16 @@ export async function PATCH(req: Request) {
       where: { venueId: venue.id },
     });
 
-    // Sync to mobile app MySQL (non-blocking)
-    syncVenueToMySQL({
-      ...updated,
-      businessHours: updated.businessHours as any,
-      incentives: incentives as any,
-    }).catch((err) => console.error("[mysql-sync] venue PATCH sync failed:", err));
+    // Sync to mobile app MySQL
+    try {
+      await syncVenueToMySQL({
+        ...updated,
+        businessHours: updated.businessHours as any,
+        incentives: incentives as any,
+      });
+    } catch (err) {
+      console.error("[mysql-sync] venue PATCH sync failed:", err);
+    }
 
     return NextResponse.json(updated);
   } catch (err) {
