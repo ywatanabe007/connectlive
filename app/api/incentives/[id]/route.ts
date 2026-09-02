@@ -20,10 +20,17 @@ async function getOwnedIncentive(incentiveId: string) {
   return { error: null, status: 200, incentive, venue };
 }
 
-async function syncAfter(venueId: string, venue: any) {
+async function syncAfterChange(venueId: string, venue: any) {
   const incentives = await db.incentive.findMany({ where: { venueId } });
-  syncVenueToMySQL({ ...venue, businessHours: venue.businessHours as any, incentives: incentives as any })
-    .catch((err) => console.error("[mysql-sync] incentive [id] sync failed:", err));
+  try {
+    await syncVenueToMySQL({
+      ...venue,
+      businessHours: venue.businessHours as any,
+      incentives: incentives as any,
+    });
+  } catch (err) {
+    console.error("[mysql-sync] incentive [id] sync failed:", err);
+  }
 }
 
 export async function PATCH(req: Request, { params }: RouteParams) {
@@ -41,8 +48,8 @@ export async function PATCH(req: Request, { params }: RouteParams) {
 
   const updated = await db.incentive.update({ where: { id }, data: safeData });
 
-  // Sync to MySQL
-  syncAfter(venue.id, venue);
+  // Sync updated incentive list to mobile MySQL (awaited so errors surface in logs)
+  await syncAfterChange(venue.id, venue);
 
   return NextResponse.json(updated);
 }
@@ -57,8 +64,8 @@ export async function DELETE(_req: Request, { params }: RouteParams) {
   await db.redemption.deleteMany({ where: { incentiveId: id } });
   await db.incentive.delete({ where: { id } });
 
-  // Sync to MySQL (incentive is now gone)
-  syncAfter(venue.id, venue);
+  // Sync updated incentive list to mobile MySQL (incentive now removed)
+  await syncAfterChange(venue.id, venue);
 
   return NextResponse.json({ success: true });
 }

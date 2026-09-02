@@ -211,46 +211,42 @@ export async function syncVenueToMySQL(
     date_updated:       new Date(),
   };
 
-  // UPDATE the existing row keyed on source_event_id (set by markVenueAsClaimed).
-  // We only update columns we know exist in the scraped table.
-  const knownColumns: (keyof typeof row)[] = [
-    "source",
-    "event_title",
-    "location_name",
-    "address",
-    "city",
-    "state",
-    "zip_code",
-    "latitude",
-    "longitude",
-    "business_type",
-    "experience_category",
-    "group_friendly",
-    "description",
-    "event_url",
-    "image_url",
-    "operating_hours",
-    "incentives",
-    "incentive_hint",
-    "incentives_json",
-    "date_updated",
-  ];
+  // Use plain UPDATE keyed on source_event_id.
+  // INSERT … ON DUPLICATE KEY UPDATE only fires when there's a UNIQUE index on
+  // source_event_id — which the scraped MySQL table may not have.  A targeted
+  // UPDATE is always safe once the row is claimed.
 
-  const setClauses = knownColumns.map((c) => `\`${c}\` = ?`).join(", ");
-  const values = knownColumns.map((c) => (row as any)[c]);
-
-  // Diagnostic: check if the row exists first
+  // Diagnostic: confirm the row exists before attempting the update.
   const [checkRows] = await pool.execute<any[]>(
     `SELECT id, source_event_id FROM \`${VENUE_TABLE}\` WHERE source_event_id = ? LIMIT 1`,
     [row.source_event_id]
   );
   if (!checkRows.length) {
-    console.error(`[mysql-sync] No MySQL row found with source_event_id=${row.source_event_id} — sync skipped`);
+    console.error(
+      `[mysql-sync] No MySQL row found with source_event_id=${row.source_event_id} — sync skipped`
+    );
     return;
   }
-  console.log(`[mysql-sync] Found MySQL row id=${checkRows[0].id} for source_event_id=${row.source_event_id}`);
+  console.log(
+    `[mysql-sync] Found MySQL row id=${checkRows[0].id} for source_event_id=${row.source_event_id}`
+  );
+
+  // Only update columns we know exist in the scraped table to avoid
+  // "Unknown column" errors on tables with varying schemas.
+  const safeColumns = [
+    "event_title", "location_name", "address", "city", "state", "zip_code",
+    "latitude", "longitude", "business_type", "experience_category",
+    "incentive_category", "timing_restrictions", "group_friendly",
+    "description", "event_url", "image_url", "operating_hours",
+    "hours_timezone", "hours_source", "incentives", "incentive_hint",
+    "incentives_json", "expiration_status", "incentives_source", "date_updated",
+  ] as const;
+
+  const setClauses = safeColumns.map((c) => `\`${c}\` = ?`).join(", ");
+  const values = safeColumns.map((c) => (row as any)[c] ?? null);
 
   const sql = `UPDATE \`${VENUE_TABLE}\` SET ${setClauses} WHERE source_event_id = ?`;
+
   const [result] = await pool.execute(sql, [...values, row.source_event_id]) as any;
   console.log(`[mysql-sync] UPDATE done: affectedRows=${result?.affectedRows}`);
 }
@@ -290,7 +286,7 @@ export type ClaimableVenue = {
 };
 
 /**
- * Search for unclaimed venues (excludes source = 'partner_portal') by name and optional city.
+ * Search for unclaimed venues (source = 'ConnectLive') by name and optional city.
  */
 export async function searchClaimableVenues(
   name: string,
@@ -456,51 +452,4 @@ export async function removeEventFromMySQL(eventId: string): Promise<void> {
     `DELETE FROM \`${EVENT_TABLE}\` WHERE source_event_id = ? AND source = 'partner_event'`,
     [eventId]
   );
-}
-
-/**
- * Convert a Google Places operating_hours object into the partner portal's
- * BusinessHours format: { monday: { open, close, closed }, ... }
- * Google uses numeric day indices where 0 = Sunday.
- */
-export function convertOperatingHours(oh: any): Record<string, { open: string; close: string; closed: boolean }> | null {
-  if (!oh?.days) return null;
-  const dayMap: Record<number, string> = {
-    0: "sunday", 1: "monday", 2: "tuesday", 3: "wednesday",
-    4: "thursday", 5: "friday", 6: "saturday",
-  };
-  const result: Record<string, { open: string; close: string; closed: boolean }> = {};
-  for (const [idx, dayName] of Object.entries(dayMap)) {
-    const d = oh.days[Number(idx)];
-    if (d) {
-      const period = d.periods?.[0];
-      result[dayName] = {
-        open:   period?.open?.slice(0, 5)  ?? "09:00",
-        close:  period?.close?.slice(0, 5) ?? "22:00",
-        closed: d.closed === true,
-      };
-    } else {
-      result[dayName] = { open: "09:00", close: "22:00", closed: false };
-    }
-  }
-  return result;
-}
-
-/**
- * Strip raw scraper metadata (Rating, Price, Phone, Hours JSON, category tags)
- * from a MySQL description field, returning clean prose or null.
- */
-export function cleanScrapedDescription(raw: string | null | undefined): string | null {
-  if (!raw) return null;
-  const lines = raw.split(/\n|\r/).map((l) => l.trim()).filter(Boolean);
-  const cleaned = lines.filter((line) => {
-    // Drop lines that are clearly scraper metadata
-    if (/^(Rating|Price|Phone|Hours|Address|Website|Email):/i.test(line)) return false;
-    // Drop lines that look like a JSON blob
-    if (/^[{\[]/.test(line)) return false;
-    // Drop short comma-separated tag lists (e.g. "bar, establishment, food")
-    if (/^[a-z_,\s]+$/.test(line) && line.includes(",")) return false;
-    return true;
-  });
-  return cleaned.join("\n").trim() || null;
 }

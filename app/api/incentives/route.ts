@@ -12,11 +12,15 @@ async function getVenueForSession() {
 
 async function syncVenueWithIncentives(venueId: string, venue: any) {
   const incentives = await db.incentive.findMany({ where: { venueId } });
-  syncVenueToMySQL({
-    ...venue,
-    businessHours: venue.businessHours as any,
-    incentives: incentives as any,
-  }).catch((err) => console.error("[mysql-sync] incentive sync failed:", err));
+  try {
+    await syncVenueToMySQL({
+      ...venue,
+      businessHours: venue.businessHours as any,
+      incentives: incentives as any,
+    });
+  } catch (err) {
+    console.error("[mysql-sync] incentive sync failed:", err);
+  }
 }
 
 export async function GET() {
