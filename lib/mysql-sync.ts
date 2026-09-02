@@ -211,21 +211,15 @@ export async function syncVenueToMySQL(
     date_updated:       new Date(),
   };
 
-  // INSERT … ON DUPLICATE KEY UPDATE — safe upsert keyed on source_event_id
-  const columns = Object.keys(row);
-  const placeholders = columns.map(() => "?").join(", ");
-  const updates = columns
-    .filter((c) => c !== "source_event_id" && c !== "source")
-    .map((c) => `\`${c}\` = VALUES(\`${c}\`)`)
+  // UPDATE the existing row keyed on source_event_id (set by markVenueAsClaimed).
+  // We avoid INSERT…ON DUPLICATE KEY because source_event_id may not be a UNIQUE index.
+  const { source_event_id, ...updateFields } = row;
+  const setClauses = Object.keys(updateFields)
+    .map((c) => `\`${c}\` = ?`)
     .join(", ");
 
-  const sql = `
-    INSERT INTO \`${VENUE_TABLE}\` (${columns.map((c) => `\`${c}\``).join(", ")})
-    VALUES (${placeholders})
-    ON DUPLICATE KEY UPDATE ${updates}
-  `;
-
-  await pool.execute(sql, Object.values(row));
+  const sql = `UPDATE \`${VENUE_TABLE}\` SET ${setClauses} WHERE source_event_id = ?`;
+  await pool.execute(sql, [...Object.values(updateFields), source_event_id]);
 }
 
 /**
