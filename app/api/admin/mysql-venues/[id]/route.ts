@@ -40,7 +40,7 @@ export async function PATCH(req: Request, { params }: RouteParams) {
     const pool = getPool();
     const [result] = await pool.execute(
       `UPDATE \`${VENUE_TABLE}\` SET ${sets.join(", ")} WHERE id = ?`,
-      values
+      values as any[]
     ) as any;
 
     if (result.affectedRows === 0) {
