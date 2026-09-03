@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin";
 import { getPool } from "@/lib/mysql-sync";
 
-const VENUE_TABLE = process.env.MYSQL_VENUE_TABLE ?? "tbl_venues";
+// Edit/delete against whichever table we read from (production)
+const VENUE_TABLE = process.env.MYSQL_VENUE_TABLE_PROD ?? process.env.MYSQL_VENUE_TABLE ?? "tbl_venues_near_you_staging";
 
 type RouteParams = { params: Promise<{ id: string }> };
 

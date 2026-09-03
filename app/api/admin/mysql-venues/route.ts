@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin";
 import { getPool } from "@/lib/mysql-sync";
 
-const VENUE_TABLE = process.env.MYSQL_VENUE_TABLE ?? "tbl_venues";
+// Read from production table; fall back to the staging table if no prod var is set
+const VENUE_TABLE = process.env.MYSQL_VENUE_TABLE_PROD ?? process.env.MYSQL_VENUE_TABLE ?? "tbl_venues_near_you_staging";
 
 export async function GET(req: Request) {
   await requireAdmin();
