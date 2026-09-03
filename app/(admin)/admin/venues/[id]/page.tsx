@@ -47,7 +47,7 @@ export default async function AdminVenueDetailPage({ params }: Props) {
             </p>
           </div>
         </div>
-        <AdminVenueActions venueId={venue.id} active={venue.active} />
+        <AdminVenueActions venue={venue} />
       </div>
 
       {/* Stats row */}

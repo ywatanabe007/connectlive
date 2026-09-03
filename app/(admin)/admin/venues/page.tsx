@@ -4,7 +4,8 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import {
   MapPin, ChevronRight, CheckCircle, XCircle,
-  Search, ChevronDown, ChevronUp, ExternalLink, Tag, RefreshCw, Database, Building2,
+  Search, ChevronDown, ChevronUp, ExternalLink, Tag, RefreshCw,
+  Database, Building2, Pencil, Trash2, Loader2, X, Save,
 } from "lucide-react";
 
 // ─── Partner Portal (Neon) types ───────────────────────────────────────────
@@ -50,27 +51,227 @@ type MySQLVenue = {
   source: string | null;
   sourceEventId: string | null;
   incentiveSummary: string | null;
+  incentiveHint: string | null;
   website: string | null;
+  description: string | null;
+  groupFriendly: boolean;
   dateUpdated: string | null;
   incentives: Incentive[];
 };
 
 type Pagination = { total: number; page: number; limit: number; pages: number };
 
-// ─── Shared components ──────────────────────────────────────────────────────
+// ─── Shared ─────────────────────────────────────────────────────────────────
 
 function SourceBadge({ source }: { source: string | null }) {
   if (source === "partner_portal") {
-    return (
-      <span className="inline-flex items-center text-xs font-medium px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">
-        Partner Portal
-      </span>
-    );
+    return <span className="inline-flex items-center text-xs font-medium px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">Partner Portal</span>;
   }
+  return <span className="inline-flex items-center text-xs font-medium px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">{source ?? "ConnectLive"}</span>;
+}
+
+function FormField({ label, value, onChange, type = "text", textarea = false }: {
+  label: string; value: string; onChange: (v: string) => void; type?: string; textarea?: boolean;
+}) {
+  const cls = "w-full px-3 py-2 rounded-xl border text-sm focus:outline-none focus:ring-2 focus:ring-purple-500";
+  const sty = { background: "var(--bg)", borderColor: "var(--border)", color: "var(--fg)" };
   return (
-    <span className="inline-flex items-center text-xs font-medium px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">
-      {source ?? "ConnectLive"}
-    </span>
+    <div>
+      <label className="block text-xs font-medium mb-1" style={{ color: "var(--muted)" }}>{label}</label>
+      {textarea
+        ? <textarea value={value} onChange={(e) => onChange(e.target.value)} rows={3} className={cls} style={sty} />
+        : <input type={type} value={value} onChange={(e) => onChange(e.target.value)} className={cls} style={sty} />
+      }
+    </div>
+  );
+}
+
+// ─── MySQL edit modal ────────────────────────────────────────────────────────
+
+function MySQLEditModal({ venue, onClose, onSaved }: { venue: MySQLVenue; onClose: () => void; onSaved: () => void }) {
+  const [form, setForm] = useState({
+    event_title:        venue.name,
+    address:            venue.address,
+    city:               venue.city,
+    state:              venue.state,
+    zip_code:           venue.zip,
+    phone:              "",
+    event_url:          venue.website ?? "",
+    image_url:          "",
+    description:        venue.description ?? "",
+    business_type:      venue.businessType ?? "",
+    experience_category: venue.experienceCategory ?? "",
+    incentives:         venue.incentiveSummary ?? "",
+    incentive_hint:     venue.incentiveHint ?? "",
+    group_friendly:     venue.groupFriendly ? "Yes" : "No",
+  });
+  const [saving, setSaving] = useState(false);
+  const [error, setError]   = useState("");
+  const set = (k: keyof typeof form) => (v: string) => setForm((f) => ({ ...f, [k]: v }));
+
+  async function save() {
+    setSaving(true);
+    setError("");
+    try {
+      const res = await fetch(`/api/admin/mysql-venues/${venue.mysqlId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+      if (!res.ok) { const d = await res.json(); throw new Error(d.error ?? "Save failed"); }
+      onSaved();
+      onClose();
+    } catch (e: any) { setError(e.message); }
+    finally { setSaving(false); }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.5)" }}>
+      <div className="w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden" style={{ background: "var(--card)", maxHeight: "90vh", display: "flex", flexDirection: "column" }}>
+        <div className="flex items-center justify-between px-6 py-4 border-b" style={{ borderColor: "var(--border)" }}>
+          <h2 className="font-semibold" style={{ color: "var(--fg)" }}>Edit Venue — MySQL #{venue.mysqlId}</h2>
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-purple-50 transition-colors" style={{ color: "var(--muted)" }}><X className="w-4 h-4" /></button>
+        </div>
+        <div className="overflow-y-auto p-6 space-y-4">
+          <FormField label="Venue name" value={form.event_title} onChange={set("event_title")} />
+          <div className="grid grid-cols-2 gap-4">
+            <FormField label="Business type" value={form.business_type} onChange={set("business_type")} />
+            <FormField label="Experience category" value={form.experience_category} onChange={set("experience_category")} />
+          </div>
+          <FormField label="Address" value={form.address} onChange={set("address")} />
+          <div className="grid grid-cols-3 gap-4">
+            <FormField label="City" value={form.city} onChange={set("city")} />
+            <FormField label="State" value={form.state} onChange={set("state")} />
+            <FormField label="ZIP" value={form.zip_code} onChange={set("zip_code")} />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <FormField label="Phone" value={form.phone} onChange={set("phone")} type="tel" />
+            <FormField label="Website" value={form.event_url} onChange={set("event_url")} type="url" />
+          </div>
+          <FormField label="Image URL" value={form.image_url} onChange={set("image_url")} type="url" />
+          <FormField label="Description" value={form.description} onChange={set("description")} textarea />
+          <FormField label="Incentive summary" value={form.incentives} onChange={set("incentives")} textarea />
+          <FormField label="Incentive hint / teaser" value={form.incentive_hint} onChange={set("incentive_hint")} />
+          <div>
+            <label className="block text-xs font-medium mb-1" style={{ color: "var(--muted)" }}>Group friendly</label>
+            <select value={form.group_friendly} onChange={(e) => setForm((f) => ({ ...f, group_friendly: e.target.value }))}
+              className="w-full px-3 py-2 rounded-xl border text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+              style={{ background: "var(--bg)", borderColor: "var(--border)", color: "var(--fg)" }}>
+              <option value="Yes">Yes</option>
+              <option value="No">No</option>
+            </select>
+          </div>
+          {error && <p className="text-sm text-red-500">{error}</p>}
+        </div>
+        <div className="flex justify-end gap-3 px-6 py-4 border-t" style={{ borderColor: "var(--border)" }}>
+          <button onClick={onClose} disabled={saving} className="px-4 py-2 rounded-xl border text-sm hover:bg-purple-50 transition-colors" style={{ borderColor: "var(--border)", color: "var(--muted)" }}>Cancel</button>
+          <button onClick={save} disabled={saving} className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium bg-purple-600 text-white hover:bg-purple-700 transition-colors disabled:opacity-50">
+            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Save changes
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── MySQL venue row ─────────────────────────────────────────────────────────
+
+function IncentiveRow({ inc }: { inc: Incentive }) {
+  const desc = inc.incentives ?? inc.description ?? "";
+  const category = inc.type ?? inc.category ?? "";
+  return (
+    <div className="py-2 border-t first:border-t-0" style={{ borderColor: "var(--border)" }}>
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex-1 min-w-0">
+          <p className="text-xs font-semibold" style={{ color: "var(--fg)" }}>{inc.title}</p>
+          {desc && <p className="text-xs mt-0.5" style={{ color: "var(--muted)" }}>{desc}</p>}
+          {inc.incentive_hint && <p className="text-xs italic mt-0.5" style={{ color: "var(--muted)" }}>Hint: {inc.incentive_hint}</p>}
+          {inc.schedule && <p className="text-xs mt-0.5" style={{ color: "var(--muted)" }}>⏱ {inc.schedule}</p>}
+        </div>
+        {category && <span className="flex-shrink-0 text-xs px-1.5 py-0.5 rounded bg-purple-50 text-purple-700">{category}</span>}
+      </div>
+      <div className="flex gap-3 mt-1 text-xs" style={{ color: "var(--muted)" }}>
+        {inc.start_date && <span>From {new Date(inc.start_date).toLocaleDateString()}</span>}
+        {inc.end_date && <span>Until {new Date(inc.end_date).toLocaleDateString()}</span>}
+        {(inc.group_friendly === "Yes" || inc.group_friendly === true) && <span className="text-emerald-600">Group friendly</span>}
+      </div>
+    </div>
+  );
+}
+
+function MySQLVenueRow({ venue, onRefresh }: { venue: MySQLVenue; onRefresh: () => void }) {
+  const [open, setOpen]       = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const hasIncentives = venue.incentives.length > 0;
+
+  async function handleDelete() {
+    if (!confirm(`Delete "${venue.name}" from the mobile database? This cannot be undone.`)) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/admin/mysql-venues/${venue.mysqlId}`, { method: "DELETE" });
+      if (res.ok) onRefresh();
+      else alert("Delete failed.");
+    } finally { setDeleting(false); }
+  }
+
+  return (
+    <>
+      {editing && <MySQLEditModal venue={venue} onClose={() => setEditing(false)} onSaved={onRefresh} />}
+      <tr className="hover:bg-purple-50/20 transition-colors" style={{ borderBottom: open ? "none" : "1px solid var(--border)" }}>
+        <td className="px-4 py-3 cursor-pointer" onClick={() => hasIncentives && setOpen((o) => !o)}>
+          <div className="flex items-start gap-2">
+            <span className="mt-0.5 w-4 flex-shrink-0 text-purple-500">
+              {hasIncentives ? (open ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />) : null}
+            </span>
+            <div>
+              <p className="text-sm font-medium" style={{ color: "var(--fg)" }}>{venue.name}</p>
+              <p className="text-xs flex items-center gap-1 mt-0.5" style={{ color: "var(--muted)" }}>
+                <MapPin className="w-3 h-3" />{venue.city}, {venue.state}
+              </p>
+            </div>
+          </div>
+        </td>
+        <td className="px-4 py-3 text-xs" style={{ color: "var(--muted)" }}>{venue.businessType ?? venue.experienceCategory ?? "—"}</td>
+        <td className="px-4 py-3"><SourceBadge source={venue.source} /></td>
+        <td className="px-4 py-3 text-center">
+          {hasIncentives
+            ? <span className="inline-flex items-center gap-1 text-xs font-medium text-purple-700 bg-purple-50 px-2 py-0.5 rounded-full"><Tag className="w-3 h-3" />{venue.incentives.length}</span>
+            : <span className="text-xs" style={{ color: "var(--muted)" }}>—</span>}
+        </td>
+        <td className="px-4 py-3 text-xs" style={{ color: "var(--muted)" }}>
+          {venue.dateUpdated ? new Date(venue.dateUpdated).toLocaleDateString() : "—"}
+        </td>
+        <td className="px-4 py-3">
+          <div className="flex items-center justify-end gap-1">
+            {venue.website && (
+              <a href={venue.website} target="_blank" rel="noopener noreferrer"
+                className="inline-flex p-1.5 rounded-lg hover:bg-purple-100 transition-colors">
+                <ExternalLink className="w-3.5 h-3.5 text-purple-600" />
+              </a>
+            )}
+            <button onClick={() => setEditing(true)}
+              className="inline-flex p-1.5 rounded-lg hover:bg-purple-100 transition-colors" title="Edit">
+              <Pencil className="w-3.5 h-3.5 text-purple-600" />
+            </button>
+            <button onClick={handleDelete} disabled={deleting}
+              className="inline-flex p-1.5 rounded-lg hover:bg-red-100 transition-colors disabled:opacity-40" title="Delete">
+              {deleting ? <Loader2 className="w-3.5 h-3.5 text-red-500 animate-spin" /> : <Trash2 className="w-3.5 h-3.5 text-red-500" />}
+            </button>
+          </div>
+        </td>
+      </tr>
+      {open && hasIncentives && (
+        <tr style={{ borderBottom: "1px solid var(--border)" }}>
+          <td colSpan={6} className="px-4 pb-3 pt-0">
+            <div className="ml-6 rounded-xl border p-3" style={{ background: "var(--bg)", borderColor: "var(--border)" }}>
+              <p className="text-xs font-semibold uppercase tracking-wide mb-1" style={{ color: "var(--muted)" }}>Incentives</p>
+              {venue.incentives.map((inc, i) => <IncentiveRow key={inc.id ?? i} inc={inc} />)}
+            </div>
+          </td>
+        </tr>
+      )}
+    </>
   );
 }
 
@@ -124,15 +325,9 @@ function PortalVenuesTab() {
                 <td className="px-6 py-3 text-xs" style={{ color: "var(--muted)" }}>{v.businessType ?? v.type ?? "—"}</td>
                 <td className="px-6 py-3 text-center text-sm" style={{ color: "var(--fg)" }}>{v._count.incentives}</td>
                 <td className="px-6 py-3 text-center">
-                  {v.active ? (
-                    <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
-                      <CheckCircle className="w-3 h-3" /> Active
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center gap-1 text-xs font-medium text-red-600 bg-red-50 px-2 py-0.5 rounded-full">
-                      <XCircle className="w-3 h-3" /> Suspended
-                    </span>
-                  )}
+                  {v.active
+                    ? <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full"><CheckCircle className="w-3 h-3" /> Active</span>
+                    : <span className="inline-flex items-center gap-1 text-xs font-medium text-red-600 bg-red-50 px-2 py-0.5 rounded-full"><XCircle className="w-3 h-3" /> Suspended</span>}
                 </td>
                 <td className="px-6 py-3 text-right text-xs" style={{ color: "var(--muted)" }}>
                   {new Date(v.createdAt).toLocaleDateString()}
@@ -153,101 +348,10 @@ function PortalVenuesTab() {
 
 // ─── All Venues (MySQL) tab ─────────────────────────────────────────────────
 
-function IncentiveRow({ inc }: { inc: Incentive }) {
-  const desc = inc.incentives ?? inc.description ?? "";
-  const category = inc.type ?? inc.category ?? "";
-  return (
-    <div className="py-2 border-t first:border-t-0" style={{ borderColor: "var(--border)" }}>
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex-1 min-w-0">
-          <p className="text-xs font-semibold" style={{ color: "var(--fg)" }}>{inc.title}</p>
-          {desc && <p className="text-xs mt-0.5" style={{ color: "var(--muted)" }}>{desc}</p>}
-          {inc.incentive_hint && (
-            <p className="text-xs italic mt-0.5" style={{ color: "var(--muted)" }}>Hint: {inc.incentive_hint}</p>
-          )}
-          {inc.schedule && <p className="text-xs mt-0.5" style={{ color: "var(--muted)" }}>⏱ {inc.schedule}</p>}
-        </div>
-        {category && (
-          <span className="flex-shrink-0 text-xs px-1.5 py-0.5 rounded bg-purple-50 text-purple-700">{category}</span>
-        )}
-      </div>
-      <div className="flex gap-3 mt-1 text-xs" style={{ color: "var(--muted)" }}>
-        {inc.start_date && <span>From {new Date(inc.start_date).toLocaleDateString()}</span>}
-        {inc.end_date && <span>Until {new Date(inc.end_date).toLocaleDateString()}</span>}
-        {(inc.group_friendly === "Yes" || inc.group_friendly === true) && (
-          <span className="text-emerald-600">Group friendly</span>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function MySQLVenueRow({ venue }: { venue: MySQLVenue }) {
-  const [open, setOpen] = useState(false);
-  const hasIncentives = venue.incentives.length > 0;
-
-  return (
-    <>
-      <tr
-        className="hover:bg-purple-50/20 transition-colors"
-        style={{ borderBottom: open ? "none" : "1px solid var(--border)", cursor: hasIncentives ? "pointer" : "default" }}
-        onClick={() => hasIncentives && setOpen((o) => !o)}
-      >
-        <td className="px-4 py-3">
-          <div className="flex items-start gap-2">
-            <span className="mt-0.5 w-4 flex-shrink-0 text-purple-500">
-              {hasIncentives ? (open ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />) : null}
-            </span>
-            <div>
-              <p className="text-sm font-medium" style={{ color: "var(--fg)" }}>{venue.name}</p>
-              <p className="text-xs flex items-center gap-1 mt-0.5" style={{ color: "var(--muted)" }}>
-                <MapPin className="w-3 h-3" />{venue.city}, {venue.state}
-              </p>
-            </div>
-          </div>
-        </td>
-        <td className="px-4 py-3 text-xs" style={{ color: "var(--muted)" }}>
-          {venue.businessType ?? venue.experienceCategory ?? "—"}
-        </td>
-        <td className="px-4 py-3"><SourceBadge source={venue.source} /></td>
-        <td className="px-4 py-3 text-center">
-          {hasIncentives ? (
-            <span className="inline-flex items-center gap-1 text-xs font-medium text-purple-700 bg-purple-50 px-2 py-0.5 rounded-full">
-              <Tag className="w-3 h-3" />{venue.incentives.length}
-            </span>
-          ) : <span className="text-xs" style={{ color: "var(--muted)" }}>—</span>}
-        </td>
-        <td className="px-4 py-3 text-xs" style={{ color: "var(--muted)" }}>
-          {venue.dateUpdated ? new Date(venue.dateUpdated).toLocaleDateString() : "—"}
-        </td>
-        <td className="px-4 py-3 text-right">
-          {venue.website && (
-            <a href={venue.website} target="_blank" rel="noopener noreferrer"
-              onClick={(e) => e.stopPropagation()}
-              className="inline-flex p-1.5 rounded-lg hover:bg-purple-100 transition-colors">
-              <ExternalLink className="w-3.5 h-3.5 text-purple-600" />
-            </a>
-          )}
-        </td>
-      </tr>
-      {open && hasIncentives && (
-        <tr style={{ borderBottom: "1px solid var(--border)" }}>
-          <td colSpan={6} className="px-4 pb-3 pt-0">
-            <div className="ml-6 rounded-xl border p-3" style={{ background: "var(--bg)", borderColor: "var(--border)" }}>
-              <p className="text-xs font-semibold uppercase tracking-wide mb-1" style={{ color: "var(--muted)" }}>Incentives</p>
-              {venue.incentives.map((inc, i) => <IncentiveRow key={inc.id ?? i} inc={inc} />)}
-            </div>
-          </td>
-        </tr>
-      )}
-    </>
-  );
-}
-
 function AllVenuesTab() {
   const [search, setSearch] = useState("");
   const [source, setSource] = useState("all");
-  const [page, setPage] = useState(1);
+  const [page, setPage]     = useState(1);
   const [venues, setVenues] = useState<MySQLVenue[]>([]);
   const [pagination, setPagination] = useState<Pagination | null>(null);
   const [loading, setLoading] = useState(false);
@@ -261,9 +365,7 @@ function AllVenuesTab() {
       const data = await res.json();
       setVenues(data.venues ?? []);
       setPagination(data.pagination ?? null);
-    } finally {
-      setLoading(false);
-    }
+    } finally { setLoading(false); }
   }, []);
 
   useEffect(() => {
@@ -273,6 +375,8 @@ function AllVenuesTab() {
   }, [search, source, fetchVenues]);
 
   useEffect(() => { fetchVenues(search, source, page); }, [page]); // eslint-disable-line
+
+  const refresh = () => fetchVenues(search, source, page);
 
   return (
     <div>
@@ -291,7 +395,7 @@ function AllVenuesTab() {
           <option value="partner_portal">Partner Portal only</option>
           <option value="connectlive">ConnectLive / unclaimed</option>
         </select>
-        <button onClick={() => fetchVenues(search, source, page)}
+        <button onClick={refresh}
           className="flex items-center gap-2 px-3 py-2 rounded-xl border text-sm hover:bg-purple-50 transition-colors"
           style={{ borderColor: "var(--border)", color: "var(--muted)" }}>
           <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} /> Refresh
@@ -313,7 +417,7 @@ function AllVenuesTab() {
               <th className="text-left px-4 py-3 font-medium">Source</th>
               <th className="text-center px-4 py-3 font-medium">Incentives</th>
               <th className="text-left px-4 py-3 font-medium">Updated</th>
-              <th className="px-4 py-3" />
+              <th className="text-right px-4 py-3 font-medium">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -321,7 +425,7 @@ function AllVenuesTab() {
               <tr><td colSpan={6} className="px-6 py-12 text-center" style={{ color: "var(--muted)" }}>Loading…</td></tr>
             ) : venues.length === 0 ? (
               <tr><td colSpan={6} className="px-6 py-12 text-center" style={{ color: "var(--muted)" }}>No venues found.</td></tr>
-            ) : venues.map((v) => <MySQLVenueRow key={v.mysqlId} venue={v} />)}
+            ) : venues.map((v) => <MySQLVenueRow key={v.mysqlId} venue={v} onRefresh={refresh} />)}
           </tbody>
         </table>
       </div>
@@ -357,16 +461,12 @@ export default function AdminVenuesPage() {
         <h1 className="text-2xl font-bold" style={{ color: "var(--fg)" }}>Venues</h1>
       </div>
 
-      {/* Tabs */}
       <div className="flex gap-1 mb-6 p-1 rounded-xl w-fit" style={{ background: "var(--bg)", border: "1px solid var(--border)" }}>
         {tabs.map(({ key, label, icon: Icon }) => (
           <button key={key} onClick={() => setTab(key)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-              tab === key ? "bg-purple-600 text-white shadow-sm" : "hover:bg-purple-50/60"
-            }`}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${tab === key ? "bg-purple-600 text-white shadow-sm" : "hover:bg-purple-50/60"}`}
             style={tab === key ? {} : { color: "var(--muted)" }}>
-            <Icon className="w-4 h-4" />
-            {label}
+            <Icon className="w-4 h-4" />{label}
           </button>
         ))}
       </div>
