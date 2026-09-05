@@ -5,7 +5,7 @@ import Link from "next/link";
 import {
   MapPin, ChevronRight, CheckCircle, XCircle,
   Search, ChevronDown, ChevronUp, ExternalLink, Tag, RefreshCw,
-  Database, Building2, Pencil, Trash2, Loader2, X, Save,
+  Database, Building2, Pencil, Trash2, Loader2, X, Save, ChevronsUpDown,
 } from "lucide-react";
 
 // ─── Partner Portal (Neon) types ───────────────────────────────────────────
@@ -348,19 +348,30 @@ function PortalVenuesTab() {
 
 // ─── All Venues (MySQL) tab ─────────────────────────────────────────────────
 
+type SortKey = "venue" | "type" | "source" | "incentives" | "updated";
+
+function SortIcon({ col, sort, dir }: { col: SortKey; sort: SortKey; dir: "asc" | "desc" }) {
+  if (col !== sort) return <ChevronsUpDown className="w-3 h-3 ml-1 opacity-40 inline" />;
+  return dir === "asc"
+    ? <ChevronUp className="w-3 h-3 ml-1 inline text-purple-600" />
+    : <ChevronDown className="w-3 h-3 ml-1 inline text-purple-600" />;
+}
+
 function AllVenuesTab() {
   const [search, setSearch] = useState("");
   const [source, setSource] = useState("all");
   const [page, setPage]     = useState(1);
+  const [sort, setSort]     = useState<SortKey>("updated");
+  const [dir, setDir]       = useState<"asc" | "desc">("desc");
   const [venues, setVenues] = useState<MySQLVenue[]>([]);
   const [pagination, setPagination] = useState<Pagination | null>(null);
   const [loading, setLoading] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const fetchVenues = useCallback(async (s: string, src: string, p: number) => {
+  const fetchVenues = useCallback(async (s: string, src: string, p: number, sortCol: SortKey, sortDir: "asc" | "desc") => {
     setLoading(true);
     try {
-      const params = new URLSearchParams({ search: s, source: src, page: String(p), limit: "25" });
+      const params = new URLSearchParams({ search: s, source: src, page: String(p), limit: "25", sort: sortCol, dir: sortDir });
       const res = await fetch(`/api/admin/mysql-venues?${params}`);
       const data = await res.json();
       setVenues(data.venues ?? []);
@@ -370,13 +381,23 @@ function AllVenuesTab() {
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => { setPage(1); fetchVenues(search, source, 1); }, 300);
+    debounceRef.current = setTimeout(() => { setPage(1); fetchVenues(search, source, 1, sort, dir); }, 300);
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
-  }, [search, source, fetchVenues]);
+  }, [search, source, fetchVenues]); // eslint-disable-line
 
-  useEffect(() => { fetchVenues(search, source, page); }, [page]); // eslint-disable-line
+  useEffect(() => { fetchVenues(search, source, page, sort, dir); }, [page]); // eslint-disable-line
+  useEffect(() => { setPage(1); fetchVenues(search, source, 1, sort, dir); }, [sort, dir]); // eslint-disable-line
 
-  const refresh = () => fetchVenues(search, source, page);
+  const refresh = () => fetchVenues(search, source, page, sort, dir);
+
+  function handleSort(col: SortKey) {
+    if (col === sort) {
+      setDir((d) => d === "asc" ? "desc" : "asc");
+    } else {
+      setSort(col);
+      setDir("asc");
+    }
+  }
 
   return (
     <div>
@@ -412,11 +433,19 @@ function AllVenuesTab() {
         <table className="w-full text-sm">
           <thead>
             <tr style={{ borderBottom: "1px solid var(--border)", color: "var(--muted)", background: "var(--bg)" }}>
-              <th className="text-left px-4 py-3 font-medium">Venue</th>
-              <th className="text-left px-4 py-3 font-medium">Type</th>
-              <th className="text-left px-4 py-3 font-medium">Source</th>
-              <th className="text-center px-4 py-3 font-medium">Incentives</th>
-              <th className="text-left px-4 py-3 font-medium">Updated</th>
+              {([
+                { key: "venue",      label: "Venue",      align: "left"   },
+                { key: "type",       label: "Type",       align: "left"   },
+                { key: "source",     label: "Source",     align: "left"   },
+                { key: "incentives", label: "Incentives", align: "center" },
+                { key: "updated",    label: "Updated",    align: "left"   },
+              ] as { key: SortKey; label: string; align: string }[]).map(({ key, label, align }) => (
+                <th key={key}
+                  className={`px-4 py-3 font-medium text-${align} cursor-pointer select-none hover:text-purple-600 transition-colors`}
+                  onClick={() => handleSort(key)}>
+                  {label}<SortIcon col={key} sort={sort} dir={dir} />
+                </th>
+              ))}
               <th className="text-right px-4 py-3 font-medium">Actions</th>
             </tr>
           </thead>

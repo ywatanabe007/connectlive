@@ -1,12 +1,25 @@
 import { requireAdmin } from "@/lib/admin";
 import { db } from "@/lib/db";
+import { getPool } from "@/lib/mysql-sync";
 import { Building2, Tag, BarChart2, Users } from "lucide-react";
 import Link from "next/link";
+
+const PROD_TABLE = process.env.MYSQL_VENUE_TABLE_PROD ?? process.env.MYSQL_VENUE_TABLE ?? "tbl_venues_near_you_staging";
+
+async function getMySQLVenueCount(): Promise<number> {
+  try {
+    const pool = getPool();
+    const [[row]] = await pool.execute<any[]>(`SELECT COUNT(*) AS total FROM \`${PROD_TABLE}\``);
+    return row?.total ?? 0;
+  } catch {
+    return 0;
+  }
+}
 
 export default async function AdminOverviewPage() {
   await requireAdmin();
 
-  const [venueCount, userCount, incentiveCount, redemptionCount, recentVenues] =
+  const [venueCount, userCount, incentiveCount, redemptionCount, recentVenues, mysqlVenueCount] =
     await Promise.all([
       db.venue.count(),
       db.user.count(),
@@ -20,13 +33,16 @@ export default async function AdminOverviewPage() {
           _count: { select: { incentives: true } },
         },
       }),
+      getMySQLVenueCount(),
     ]);
 
+  const totalVenues = mysqlVenueCount + venueCount;
+
   const stats = [
-    { label: "Total Venues", value: venueCount, icon: Building2, href: "/admin/venues", color: "text-purple-600", bg: "bg-purple-50" },
-    { label: "Active Incentives", value: incentiveCount, icon: Tag, href: "/admin/incentives", color: "text-emerald-600", bg: "bg-emerald-50" },
-    { label: "Total Redemptions", value: redemptionCount, icon: BarChart2, href: "/admin/analytics", color: "text-blue-600", bg: "bg-blue-50" },
-    { label: "Registered Users", value: userCount, icon: Users, href: "/admin/users", color: "text-orange-600", bg: "bg-orange-50" },
+    { label: "Total Venues", value: totalVenues, sublabel: `${mysqlVenueCount.toLocaleString()} mobile · ${venueCount} partner`, icon: Building2, href: "/admin/venues", color: "text-purple-600", bg: "bg-purple-50" },
+    { label: "Active Incentives", value: incentiveCount, sublabel: undefined, icon: Tag, href: "/admin/incentives", color: "text-emerald-600", bg: "bg-emerald-50" },
+    { label: "Total Redemptions", value: redemptionCount, sublabel: undefined, icon: BarChart2, href: "/admin/analytics", color: "text-blue-600", bg: "bg-blue-50" },
+    { label: "Registered Users", value: userCount, sublabel: undefined, icon: Users, href: "/admin/users", color: "text-orange-600", bg: "bg-orange-50" },
   ];
 
   return (
@@ -39,7 +55,7 @@ export default async function AdminOverviewPage() {
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        {stats.map(({ label, value, icon: Icon, href, color, bg }) => (
+        {stats.map(({ label, value, sublabel, icon: Icon, href, color, bg }) => (
           <Link
             key={label}
             href={href}
@@ -51,6 +67,7 @@ export default async function AdminOverviewPage() {
             </div>
             <p className="text-3xl font-bold" style={{ color: "var(--fg)" }}>{value.toLocaleString()}</p>
             <p className="text-sm mt-1" style={{ color: "var(--muted)" }}>{label}</p>
+            {sublabel && <p className="text-xs mt-1" style={{ color: "var(--muted)", opacity: 0.7 }}>{sublabel}</p>}
           </Link>
         ))}
       </div>

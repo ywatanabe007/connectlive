@@ -15,6 +15,19 @@ export async function GET(req: Request) {
   const limit   = Math.min(50, Math.max(1, parseInt(searchParams.get("limit") ?? "25")));
   const offset  = (page - 1) * limit;
 
+  // Sorting
+  const sortMap: Record<string, string> = {
+    venue:      "event_title",
+    type:       "business_type",
+    source:     "source",
+    incentives: "COALESCE(JSON_LENGTH(incentives_json), 0)",
+    updated:    "date_updated",
+  };
+  const sortKey = searchParams.get("sort") ?? "updated";
+  const sortDir = searchParams.get("dir") === "asc" ? "ASC" : "DESC";
+  const orderCol = sortMap[sortKey] ?? "date_updated";
+  const orderBy = `ORDER BY ${orderCol} ${sortDir}, id DESC`;
+
   try {
     const pool = getPool();
 
@@ -49,7 +62,7 @@ export async function GET(req: Request) {
               image_url, event_url, description, group_friendly,
               date_updated
        FROM \`${VENUE_TABLE}\` ${where}
-       ORDER BY date_updated DESC, id DESC
+       ${orderBy}
        LIMIT ? OFFSET ?`,
       [...params, limit, offset]
     );
