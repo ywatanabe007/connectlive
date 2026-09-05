@@ -350,6 +350,17 @@ function PortalVenuesTab() {
 
 type SortKey = "venue" | "type" | "source" | "incentives" | "updated";
 
+type Filters = {
+  venue: string;
+  type: string;
+  source: string;
+  incentives: string; // "all" | "has" | "none"
+  dateFrom: string;
+  dateTo: string;
+};
+
+const EMPTY_FILTERS: Filters = { venue: "", type: "", source: "all", incentives: "all", dateFrom: "", dateTo: "" };
+
 function SortIcon({ col, sort, dir }: { col: SortKey; sort: SortKey; dir: "asc" | "desc" }) {
   if (col !== sort) return <ChevronsUpDown className="w-3 h-3 ml-1 opacity-40 inline" />;
   return dir === "asc"
@@ -357,21 +368,27 @@ function SortIcon({ col, sort, dir }: { col: SortKey; sort: SortKey; dir: "asc" 
     : <ChevronDown className="w-3 h-3 ml-1 inline text-purple-600" />;
 }
 
+const inputCls = "w-full px-2 py-1 rounded-lg border text-xs focus:outline-none focus:ring-1 focus:ring-purple-400";
+const inputSty = { background: "var(--bg)", borderColor: "var(--border)", color: "var(--fg)" };
+
 function AllVenuesTab() {
-  const [search, setSearch] = useState("");
-  const [source, setSource] = useState("all");
-  const [page, setPage]     = useState(1);
-  const [sort, setSort]     = useState<SortKey>("updated");
-  const [dir, setDir]       = useState<"asc" | "desc">("desc");
-  const [venues, setVenues] = useState<MySQLVenue[]>([]);
+  const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
+  const [page, setPage]       = useState(1);
+  const [sort, setSort]       = useState<SortKey>("updated");
+  const [dir, setDir]         = useState<"asc" | "desc">("desc");
+  const [venues, setVenues]   = useState<MySQLVenue[]>([]);
   const [pagination, setPagination] = useState<Pagination | null>(null);
   const [loading, setLoading] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const fetchVenues = useCallback(async (s: string, src: string, p: number, sortCol: SortKey, sortDir: "asc" | "desc") => {
+  const fetchVenues = useCallback(async (f: Filters, p: number, sortCol: SortKey, sortDir: "asc" | "desc") => {
     setLoading(true);
     try {
-      const params = new URLSearchParams({ search: s, source: src, page: String(p), limit: "25", sort: sortCol, dir: sortDir });
+      const params = new URLSearchParams({
+        page: String(p), limit: "25", sort: sortCol, dir: sortDir,
+        venue: f.venue, type: f.type, source: f.source,
+        incentives: f.incentives, dateFrom: f.dateFrom, dateTo: f.dateTo,
+      });
       const res = await fetch(`/api/admin/mysql-venues?${params}`);
       const data = await res.json();
       setVenues(data.venues ?? []);
@@ -379,59 +396,54 @@ function AllVenuesTab() {
     } finally { setLoading(false); }
   }, []);
 
+  // debounce text filters
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => { setPage(1); fetchVenues(search, source, 1, sort, dir); }, 300);
+    debounceRef.current = setTimeout(() => { setPage(1); fetchVenues(filters, 1, sort, dir); }, 350);
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
-  }, [search, source, fetchVenues]); // eslint-disable-line
+  }, [filters, fetchVenues]); // eslint-disable-line
 
-  useEffect(() => { fetchVenues(search, source, page, sort, dir); }, [page]); // eslint-disable-line
-  useEffect(() => { setPage(1); fetchVenues(search, source, 1, sort, dir); }, [sort, dir]); // eslint-disable-line
+  useEffect(() => { fetchVenues(filters, page, sort, dir); }, [page]); // eslint-disable-line
+  useEffect(() => { setPage(1); fetchVenues(filters, 1, sort, dir); }, [sort, dir]); // eslint-disable-line
 
-  const refresh = () => fetchVenues(search, source, page, sort, dir);
+  const refresh = () => fetchVenues(filters, page, sort, dir);
+  const setFilter = (k: keyof Filters) => (v: string) => setFilters((f) => ({ ...f, [k]: v }));
+  const hasFilters = Object.entries(filters).some(([k, v]) => k === "source" ? v !== "all" : k === "incentives" ? v !== "all" : v !== "");
 
   function handleSort(col: SortKey) {
-    if (col === sort) {
-      setDir((d) => d === "asc" ? "desc" : "asc");
-    } else {
-      setSort(col);
-      setDir("asc");
-    }
+    if (col === sort) setDir((d) => d === "asc" ? "desc" : "asc");
+    else { setSort(col); setDir("asc"); }
   }
 
   return (
     <div>
-      <div className="flex flex-wrap gap-3 mb-4">
-        <div className="relative flex-1 min-w-[220px]">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: "var(--muted)" }} />
-          <input type="text" placeholder="Search by name or city…" value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 rounded-xl border text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
-            style={{ background: "var(--card)", borderColor: "var(--border)", color: "var(--fg)" }} />
+      {/* Toolbar */}
+      <div className="flex items-center justify-between mb-3">
+        {pagination && (
+          <p className="text-sm" style={{ color: "var(--muted)" }}>
+            {pagination.total.toLocaleString()} total · showing {((page - 1) * 25) + 1}–{Math.min(page * 25, pagination.total)}
+          </p>
+        )}
+        <div className="flex items-center gap-2 ml-auto">
+          {hasFilters && (
+            <button onClick={() => setFilters(EMPTY_FILTERS)}
+              className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs border hover:bg-red-50 hover:border-red-300 hover:text-red-600 transition-colors"
+              style={{ borderColor: "var(--border)", color: "var(--muted)" }}>
+              <X className="w-3 h-3" /> Clear filters
+            </button>
+          )}
+          <button onClick={refresh}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs hover:bg-purple-50 transition-colors"
+            style={{ borderColor: "var(--border)", color: "var(--muted)" }}>
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} /> Refresh
+          </button>
         </div>
-        <select value={source} onChange={(e) => { setSource(e.target.value); setPage(1); }}
-          className="px-3 py-2 rounded-xl border text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
-          style={{ background: "var(--card)", borderColor: "var(--border)", color: "var(--fg)" }}>
-          <option value="all">All sources</option>
-          <option value="partner_portal">Partner Portal only</option>
-          <option value="connectlive">ConnectLive / unclaimed</option>
-        </select>
-        <button onClick={refresh}
-          className="flex items-center gap-2 px-3 py-2 rounded-xl border text-sm hover:bg-purple-50 transition-colors"
-          style={{ borderColor: "var(--border)", color: "var(--muted)" }}>
-          <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} /> Refresh
-        </button>
       </div>
 
-      {pagination && (
-        <p className="text-sm mb-4" style={{ color: "var(--muted)" }}>
-          {pagination.total.toLocaleString()} total · showing {((page - 1) * 25) + 1}–{Math.min(page * 25, pagination.total)}
-        </p>
-      )}
-
-      <div className="rounded-2xl border shadow-sm overflow-hidden" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
+      <div className="rounded-2xl border shadow-sm overflow-x-auto" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
         <table className="w-full text-sm">
           <thead>
+            {/* Sort row */}
             <tr style={{ borderBottom: "1px solid var(--border)", color: "var(--muted)", background: "var(--bg)" }}>
               {([
                 { key: "venue",      label: "Venue",      align: "left"   },
@@ -441,12 +453,59 @@ function AllVenuesTab() {
                 { key: "updated",    label: "Updated",    align: "left"   },
               ] as { key: SortKey; label: string; align: string }[]).map(({ key, label, align }) => (
                 <th key={key}
-                  className={`px-4 py-3 font-medium text-${align} cursor-pointer select-none hover:text-purple-600 transition-colors`}
+                  className={`px-4 py-2.5 font-medium text-${align} cursor-pointer select-none hover:text-purple-600 transition-colors whitespace-nowrap`}
                   onClick={() => handleSort(key)}>
                   {label}<SortIcon col={key} sort={sort} dir={dir} />
                 </th>
               ))}
-              <th className="text-right px-4 py-3 font-medium">Actions</th>
+              <th className="text-right px-4 py-2.5 font-medium">Actions</th>
+            </tr>
+            {/* Filter row */}
+            <tr style={{ borderBottom: "1px solid var(--border)", background: "var(--bg)" }}>
+              {/* Venue filter */}
+              <td className="px-3 py-2">
+                <div className="relative">
+                  <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3" style={{ color: "var(--muted)" }} />
+                  <input type="text" placeholder="Filter venue…" value={filters.venue}
+                    onChange={(e) => setFilter("venue")(e.target.value)}
+                    className={inputCls + " pl-6"} style={inputSty} />
+                </div>
+              </td>
+              {/* Type filter */}
+              <td className="px-3 py-2">
+                <input type="text" placeholder="Filter type…" value={filters.type}
+                  onChange={(e) => setFilter("type")(e.target.value)}
+                  className={inputCls} style={inputSty} />
+              </td>
+              {/* Source filter */}
+              <td className="px-3 py-2">
+                <select value={filters.source} onChange={(e) => setFilter("source")(e.target.value)}
+                  className={inputCls} style={inputSty}>
+                  <option value="all">All sources</option>
+                  <option value="partner_portal">Partner Portal</option>
+                  <option value="connectlive">ConnectLive</option>
+                </select>
+              </td>
+              {/* Incentives filter */}
+              <td className="px-3 py-2">
+                <select value={filters.incentives} onChange={(e) => setFilter("incentives")(e.target.value)}
+                  className={inputCls} style={inputSty}>
+                  <option value="all">All</option>
+                  <option value="has">Has incentives</option>
+                  <option value="none">No incentives</option>
+                </select>
+              </td>
+              {/* Updated date range */}
+              <td className="px-3 py-2">
+                <div className="flex items-center gap-1">
+                  <input type="date" value={filters.dateFrom} onChange={(e) => setFilter("dateFrom")(e.target.value)}
+                    className={inputCls} style={inputSty} title="From date" />
+                  <span className="text-xs" style={{ color: "var(--muted)" }}>–</span>
+                  <input type="date" value={filters.dateTo} onChange={(e) => setFilter("dateTo")(e.target.value)}
+                    className={inputCls} style={inputSty} title="To date" />
+                </div>
+              </td>
+              <td className="px-4 py-2" />
             </tr>
           </thead>
           <tbody>

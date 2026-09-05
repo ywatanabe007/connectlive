@@ -9,11 +9,17 @@ export async function GET(req: Request) {
   await requireAdmin();
 
   const { searchParams } = new URL(req.url);
-  const search  = searchParams.get("search")?.trim() ?? "";
-  const source  = searchParams.get("source") ?? "all";   // all | partner_portal | connectlive
   const page    = Math.max(1, parseInt(searchParams.get("page") ?? "1"));
   const limit   = Math.min(50, Math.max(1, parseInt(searchParams.get("limit") ?? "25")));
   const offset  = (page - 1) * limit;
+
+  // Per-column filters
+  const filterVenue      = searchParams.get("venue")?.trim() ?? "";
+  const filterType       = searchParams.get("type")?.trim() ?? "";
+  const filterSource     = searchParams.get("source") ?? "all";
+  const filterIncentives = searchParams.get("incentives") ?? "all"; // all | has | none
+  const filterDateFrom   = searchParams.get("dateFrom")?.trim() ?? "";
+  const filterDateTo     = searchParams.get("dateTo")?.trim() ?? "";
 
   // Sorting
   const sortMap: Record<string, string> = {
@@ -35,15 +41,35 @@ export async function GET(req: Request) {
     const conditions: string[] = [];
     const params: (string | number)[] = [];
 
-    if (search) {
+    if (filterVenue) {
       conditions.push("(event_title LIKE ? OR location_name LIKE ? OR city LIKE ?)");
-      params.push(`%${search}%`, `%${search}%`, `%${search}%`);
+      params.push(`%${filterVenue}%`, `%${filterVenue}%`, `%${filterVenue}%`);
     }
 
-    if (source === "partner_portal") {
+    if (filterType) {
+      conditions.push("(business_type LIKE ? OR experience_category LIKE ?)");
+      params.push(`%${filterType}%`, `%${filterType}%`);
+    }
+
+    if (filterSource === "partner_portal") {
       conditions.push("source = 'partner_portal'");
-    } else if (source === "connectlive") {
+    } else if (filterSource === "connectlive") {
       conditions.push("(source IS NULL OR source != 'partner_portal')");
+    }
+
+    if (filterIncentives === "has") {
+      conditions.push("JSON_LENGTH(incentives_json) > 0");
+    } else if (filterIncentives === "none") {
+      conditions.push("(incentives_json IS NULL OR JSON_LENGTH(incentives_json) = 0)");
+    }
+
+    if (filterDateFrom) {
+      conditions.push("date_updated >= ?");
+      params.push(filterDateFrom);
+    }
+    if (filterDateTo) {
+      conditions.push("date_updated <= ?");
+      params.push(filterDateTo + " 23:59:59");
     }
 
     const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
