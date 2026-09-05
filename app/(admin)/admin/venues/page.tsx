@@ -379,7 +379,16 @@ function AllVenuesTab() {
   const [venues, setVenues]   = useState<MySQLVenue[]>([]);
   const [pagination, setPagination] = useState<Pagination | null>(null);
   const [loading, setLoading] = useState(false);
+  const [sources, setSources] = useState<string[]>([]);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Load distinct source values once
+  useEffect(() => {
+    fetch("/api/admin/mysql-venues/sources")
+      .then((r) => r.json())
+      .then((d) => setSources(d.sources ?? []))
+      .catch(() => {});
+  }, []);
 
   const fetchVenues = useCallback(async (f: Filters, p: number, sortCol: SortKey, sortDir: "asc" | "desc") => {
     setLoading(true);
@@ -482,8 +491,9 @@ function AllVenuesTab() {
                 <select value={filters.source} onChange={(e) => setFilter("source")(e.target.value)}
                   className={inputCls} style={inputSty}>
                   <option value="all">All sources</option>
-                  <option value="partner_portal">Partner Portal</option>
-                  <option value="connectlive">ConnectLive</option>
+                  {sources.map((s) => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
                 </select>
               </td>
               {/* Incentives filter */}

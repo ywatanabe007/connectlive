@@ -51,10 +51,14 @@ export async function GET(req: Request) {
       params.push(`%${filterType}%`, `%${filterType}%`);
     }
 
-    if (filterSource === "partner_portal") {
-      conditions.push("source = 'partner_portal'");
-    } else if (filterSource === "connectlive") {
-      conditions.push("(source IS NULL OR source != 'partner_portal')");
+    if (filterSource !== "all") {
+      // "ConnectLive" in the UI represents rows with NULL source
+      if (filterSource === "ConnectLive") {
+        conditions.push("(source IS NULL OR source = 'ConnectLive')");
+      } else {
+        conditions.push("source = ?");
+        params.push(filterSource);
+      }
     }
 
     if (filterIncentives === "has") {
