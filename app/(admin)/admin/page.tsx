@@ -16,10 +16,22 @@ async function getMySQLVenueCount(): Promise<number> {
   }
 }
 
+async function getMySQLIncentiveCount(): Promise<number> {
+  try {
+    const pool = getPool();
+    const [[row]] = await pool.execute<any[]>(
+      `SELECT SUM(COALESCE(JSON_LENGTH(incentives_json), 0)) AS total FROM \`${PROD_TABLE}\` WHERE JSON_LENGTH(incentives_json) > 0`
+    );
+    return row?.total ?? 0;
+  } catch {
+    return 0;
+  }
+}
+
 export default async function AdminOverviewPage() {
   await requireAdmin();
 
-  const [venueCount, userCount, incentiveCount, redemptionCount, recentVenues, mysqlVenueCount] =
+  const [venueCount, userCount, incentiveCount, redemptionCount, recentVenues, mysqlVenueCount, mysqlIncentiveCount] =
     await Promise.all([
       db.venue.count(),
       db.user.count(),
@@ -34,13 +46,15 @@ export default async function AdminOverviewPage() {
         },
       }),
       getMySQLVenueCount(),
+      getMySQLIncentiveCount(),
     ]);
 
   const totalVenues = mysqlVenueCount + venueCount;
+  const totalIncentives = mysqlIncentiveCount + incentiveCount;
 
   const stats = [
     { label: "Total Venues", value: totalVenues, sublabel: `${mysqlVenueCount.toLocaleString()} mobile · ${venueCount} partner`, icon: Building2, href: "/admin/venues", color: "text-purple-600", bg: "bg-purple-50" },
-    { label: "Active Incentives", value: incentiveCount, sublabel: undefined, icon: Tag, href: "/admin/incentives", color: "text-emerald-600", bg: "bg-emerald-50" },
+    { label: "Total Incentives", value: totalIncentives, sublabel: `${mysqlIncentiveCount.toLocaleString()} mobile · ${incentiveCount} partner`, icon: Tag, href: "/admin/incentives", color: "text-emerald-600", bg: "bg-emerald-50" },
     { label: "Total Redemptions", value: redemptionCount, sublabel: undefined, icon: BarChart2, href: "/admin/analytics", color: "text-blue-600", bg: "bg-blue-50" },
     { label: "Registered Users", value: userCount, sublabel: undefined, icon: Users, href: "/admin/users", color: "text-orange-600", bg: "bg-orange-50" },
   ];
