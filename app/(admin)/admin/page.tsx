@@ -19,8 +19,18 @@ async function getMySQLVenueCount(): Promise<number> {
 async function getMySQLIncentiveCount(): Promise<number> {
   try {
     const pool = getPool();
+    // Use CASE to handle both JSON arrays (count elements) and JSON objects
+    // (count as 1), avoiding the 10x inflation that SUM(JSON_LENGTH(object)) causes.
     const [[row]] = await pool.execute<any[]>(
-      `SELECT SUM(COALESCE(JSON_LENGTH(incentives_json), 0)) AS total FROM \`${PROD_TABLE}\` WHERE JSON_LENGTH(incentives_json) > 0`
+      `SELECT SUM(
+         CASE
+           WHEN JSON_TYPE(incentives_json) = 'ARRAY'  THEN JSON_LENGTH(incentives_json)
+           WHEN JSON_TYPE(incentives_json) = 'OBJECT' THEN 1
+           ELSE 0
+         END
+       ) AS total
+       FROM \`${PROD_TABLE}\`
+       WHERE incentives_json IS NOT NULL`
     );
     return row?.total ?? 0;
   } catch {
@@ -53,8 +63,8 @@ export default async function AdminOverviewPage() {
   const totalIncentives = mysqlIncentiveCount + incentiveCount;
 
   const stats = [
-    { label: "Total Venues", value: totalVenues, sublabel: `${mysqlVenueCount.toLocaleString()} mobile · ${venueCount} partner`, icon: Building2, href: "/admin/venues", color: "text-purple-600", bg: "bg-purple-50" },
-    { label: "Total Incentives", value: totalIncentives, sublabel: `${mysqlIncentiveCount.toLocaleString()} mobile · ${incentiveCount} partner`, icon: Tag, href: "/admin/incentives", color: "text-emerald-600", bg: "bg-emerald-50" },
+    { label: "Total Venues", value: totalVenues, sublabel: `${mysqlVenueCount.toLocaleString()} ConnectLive · ${venueCount} Portal`, icon: Building2, href: "/admin/venues", color: "text-purple-600", bg: "bg-purple-50" },
+    { label: "Total Incentives", value: totalIncentives, sublabel: `${mysqlIncentiveCount.toLocaleString()} ConnectLive · ${incentiveCount} Portal`, icon: Tag, href: "/admin/incentives", color: "text-emerald-600", bg: "bg-emerald-50" },
     { label: "Total Redemptions", value: redemptionCount, sublabel: undefined, icon: BarChart2, href: "/admin/analytics", color: "text-blue-600", bg: "bg-blue-50" },
     { label: "Registered Users", value: userCount, sublabel: undefined, icon: Users, href: "/admin/users", color: "text-orange-600", bg: "bg-orange-50" },
   ];
