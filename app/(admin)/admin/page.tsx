@@ -19,18 +19,11 @@ async function getMySQLVenueCount(): Promise<number> {
 async function getMySQLIncentiveCount(): Promise<number> {
   try {
     const pool = getPool();
-    // Use CASE to handle both JSON arrays (count elements) and JSON objects
-    // (count as 1), avoiding the 10x inflation that SUM(JSON_LENGTH(object)) causes.
+    // Count venues that have at least one incentive
     const [[row]] = await pool.execute<any[]>(
-      `SELECT SUM(
-         CASE
-           WHEN JSON_TYPE(incentives_json) = 'ARRAY'  THEN JSON_LENGTH(incentives_json)
-           WHEN JSON_TYPE(incentives_json) = 'OBJECT' THEN 1
-           ELSE 0
-         END
-       ) AS total
+      `SELECT COUNT(*) AS total
        FROM \`${PROD_TABLE}\`
-       WHERE incentives_json IS NOT NULL`
+       WHERE JSON_LENGTH(incentives_json) > 0`
     );
     return row?.total ?? 0;
   } catch {
