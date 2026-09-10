@@ -101,22 +101,30 @@ function MySQLEditModal({ venue, onClose, onSaved }: { venue: MySQLVenue; onClos
     description:        venue.description ?? "",
     business_type:      venue.businessType ?? "",
     experience_category: venue.experienceCategory ?? "",
-    incentives:         venue.incentiveSummary ?? "",
     incentive_hint:     venue.incentiveHint ?? "",
     group_friendly:     venue.groupFriendly ? "Yes" : "No",
   });
+  const [incList, setIncList] = useState<Incentive[]>(
+    venue.incentives.length > 0 ? venue.incentives : []
+  );
   const [saving, setSaving] = useState(false);
   const [error, setError]   = useState("");
   const set = (k: keyof typeof form) => (v: string) => setForm((f) => ({ ...f, [k]: v }));
+
+  function setInc(i: number, field: keyof Incentive, v: string) {
+    setIncList((list) => list.map((inc, idx) => idx === i ? { ...inc, [field]: v } : inc));
+  }
 
   async function save() {
     setSaving(true);
     setError("");
     try {
+      const body: any = { ...form };
+      if (incList.length > 0) body.incentives_json = JSON.stringify(incList);
       const res = await fetch(`/api/admin/mysql-venues/${venue.mysqlId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify(body),
       });
       if (!res.ok) { const d = await res.json(); throw new Error(d.error ?? "Save failed"); }
       onSaved();
@@ -147,8 +155,21 @@ function MySQLEditModal({ venue, onClose, onSaved }: { venue: MySQLVenue; onClos
           <FormField label="Website" value={form.event_url} onChange={set("event_url")} type="url" />
           <FormField label="Image URL" value={form.image_url} onChange={set("image_url")} type="url" />
           <FormField label="Description" value={form.description} onChange={set("description")} textarea />
-          <FormField label="Incentive summary" value={form.incentives} onChange={set("incentives")} textarea />
           <FormField label="Incentive hint / teaser" value={form.incentive_hint} onChange={set("incentive_hint")} />
+          {incList.length > 0 && (
+            <div>
+              <p className="text-xs font-medium mb-2" style={{ color: "var(--muted)" }}>Incentives ({incList.length})</p>
+              <div className="space-y-4">
+                {incList.map((inc, i) => (
+                  <div key={i} className="p-3 rounded-xl border space-y-2" style={{ borderColor: "var(--border)", background: "var(--bg)" }}>
+                    <FormField label="Title" value={inc.title ?? ""} onChange={(v) => setInc(i, "title", v)} />
+                    <FormField label="Description" value={inc.incentives ?? inc.description ?? ""} onChange={(v) => setInc(i, "incentives", v)} textarea />
+                    <FormField label="Schedule" value={inc.schedule ?? ""} onChange={(v) => setInc(i, "schedule", v)} />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
           <div>
             <label className="block text-xs font-medium mb-1" style={{ color: "var(--muted)" }}>Group friendly</label>
             <select value={form.group_friendly} onChange={(e) => setForm((f) => ({ ...f, group_friendly: e.target.value }))}

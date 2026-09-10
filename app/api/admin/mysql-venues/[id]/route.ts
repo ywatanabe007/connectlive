@@ -16,7 +16,7 @@ export async function PATCH(req: Request, { params }: RouteParams) {
     "event_title", "location_name", "address", "city", "state", "zip_code",
     "event_url", "image_url", "description",
     "business_type", "experience_category", "group_friendly",
-    "incentives", "incentive_hint",
+    "incentives", "incentive_hint", "incentives_json",
   ] as const;
 
   const sets: string[] = [];
