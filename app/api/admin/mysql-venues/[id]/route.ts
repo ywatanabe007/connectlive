@@ -14,7 +14,7 @@ export async function PATCH(req: Request, { params }: RouteParams) {
 
   const allowed = [
     "event_title", "location_name", "address", "city", "state", "zip_code",
-    "phone", "event_url", "image_url", "description",
+    "event_url", "image_url", "description",
     "business_type", "experience_category", "group_friendly",
     "incentives", "incentive_hint",
   ] as const;
