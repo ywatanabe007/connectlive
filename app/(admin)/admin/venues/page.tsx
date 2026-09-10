@@ -52,6 +52,7 @@ type MySQLVenue = {
   sourceEventId: string | null;
   incentiveSummary: string | null;
   incentiveHint: string | null;
+  imageUrl: string | null;
   website: string | null;
   description: string | null;
   groupFriendly: boolean;
@@ -95,9 +96,8 @@ function MySQLEditModal({ venue, onClose, onSaved }: { venue: MySQLVenue; onClos
     city:               venue.city,
     state:              venue.state,
     zip_code:           venue.zip,
-    phone:              "",
     event_url:          venue.website ?? "",
-    image_url:          "",
+    image_url:          venue.imageUrl ?? "",
     description:        venue.description ?? "",
     business_type:      venue.businessType ?? "",
     experience_category: venue.experienceCategory ?? "",
@@ -144,10 +144,7 @@ function MySQLEditModal({ venue, onClose, onSaved }: { venue: MySQLVenue; onClos
             <FormField label="State" value={form.state} onChange={set("state")} />
             <FormField label="ZIP" value={form.zip_code} onChange={set("zip_code")} />
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <FormField label="Phone" value={form.phone} onChange={set("phone")} type="tel" />
-            <FormField label="Website" value={form.event_url} onChange={set("event_url")} type="url" />
-          </div>
+          <FormField label="Website" value={form.event_url} onChange={set("event_url")} type="url" />
           <FormField label="Image URL" value={form.image_url} onChange={set("image_url")} type="url" />
           <FormField label="Description" value={form.description} onChange={set("description")} textarea />
           <FormField label="Incentive summary" value={form.incentives} onChange={set("incentives")} textarea />
@@ -398,7 +395,7 @@ function AllVenuesTab() {
         venue: f.venue, type: f.type, source: f.source,
         incentives: f.incentives, dateFrom: f.dateFrom, dateTo: f.dateTo,
       });
-      const res = await fetch(`/api/admin/mysql-venues?${params}`);
+      const res = await fetch(`/api/admin/mysql-venues?${params}`, { cache: "no-store" });
       const data = await res.json();
       setVenues(data.venues ?? []);
       setPagination(data.pagination ?? null);
