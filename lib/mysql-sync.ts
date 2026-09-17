@@ -281,27 +281,7 @@ export async function syncVenueToMySQL(
     date_updated:       new Date(),
   };
 
-  // Use plain UPDATE keyed on source_event_id.
-  // INSERT … ON DUPLICATE KEY UPDATE only fires when there's a UNIQUE index on
-  // source_event_id — which the scraped MySQL table may not have.  A targeted
-  // UPDATE is always safe once the row is claimed.
-
-  // Diagnostic: confirm the row exists before attempting the update.
-  const [checkRows] = await pool.execute<any[]>(
-    `SELECT id, source_event_id FROM \`${VENUE_TABLE}\` WHERE source_event_id = ? LIMIT 1`,
-    [row.source_event_id]
-  );
-  if (!checkRows.length) {
-    console.error(
-      `[mysql-sync] No MySQL row found with source_event_id=${row.source_event_id} — sync skipped`
-    );
-    return;
-  }
-  console.log(
-    `[mysql-sync] Found MySQL row id=${checkRows[0].id} for source_event_id=${row.source_event_id}`
-  );
-
-  // Only update columns we know exist in the scraped table to avoid
+  // Only update/insert columns we know exist in the scraped table to avoid
   // "Unknown column" errors on tables with varying schemas.
   const safeColumns = [
     "event_title", "location_name", "address", "city", "state", "zip_code",
@@ -311,6 +291,31 @@ export async function syncVenueToMySQL(
     "hours_timezone", "hours_source", "incentives", "incentive_hint",
     "incentives_json", "expiration_status", "incentives_source", "date_updated",
   ] as const;
+
+  // Check if a row already exists for this source_event_id.
+  const [checkRows] = await pool.execute<any[]>(
+    `SELECT id, source_event_id FROM \`${VENUE_TABLE}\` WHERE source_event_id = ? LIMIT 1`,
+    [row.source_event_id]
+  );
+
+  if (!checkRows.length) {
+    // No existing row — INSERT a new one (new partner-created venue going straight to staging).
+    const insertColumns = ["source_event_id", "source", ...safeColumns] as const;
+    const insertValues = [
+      row.source_event_id,
+      row.source,
+      ...safeColumns.map((c) => (row as any)[c] ?? null),
+    ];
+    const placeholders = insertColumns.map(() => "?").join(", ");
+    const insertSql = `INSERT INTO \`${VENUE_TABLE}\` (${insertColumns.map((c) => `\`${c}\``).join(", ")}) VALUES (${placeholders})`;
+    const [insertResult] = await pool.execute(insertSql, insertValues) as any;
+    console.log(`[mysql-sync] INSERT done: insertId=${insertResult?.insertId} for source_event_id=${row.source_event_id}`);
+    return;
+  }
+
+  console.log(
+    `[mysql-sync] Found MySQL row id=${checkRows[0].id} for source_event_id=${row.source_event_id}`
+  );
 
   const setClauses = safeColumns.map((c) => `\`${c}\` = ?`).join(", ");
   const values = safeColumns.map((c) => (row as any)[c] ?? null);

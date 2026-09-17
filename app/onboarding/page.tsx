@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { Building2, FileText, CheckCircle2, MapPin, Clock } from "lucide-react";
+import { Building2, FileText, CheckCircle2, MapPin, Clock, Sparkles, X } from "lucide-react";
 import {
   BUSINESS_TYPES,
   EXPERIENCE_CATEGORIES,
@@ -31,6 +31,17 @@ type Step1 = {
 type Step2 = {
   description: string;
   unique: string;
+};
+
+type MatchedVenue = {
+  mysqlId: number;
+  name: string;
+  address: string;
+  city: string;
+  state: string;
+  zip: string;
+  imageUrl: string | null;
+  businessType: string | null;
 };
 
 const inputCls =
@@ -70,8 +81,68 @@ export default function OnboardingPage() {
   const [step2, setStep2] = useState<Step2>({ description: "", unique: "" });
   const [businessHours, setBusinessHours] = useState<BusinessHours>(DEFAULT_BUSINESS_HOURS);
 
+  // Address-match state
+  const [matchedVenues, setMatchedVenues] = useState<MatchedVenue[]>([]);
+  const [matchDismissed, setMatchDismissed] = useState(false);
+  const [claiming, setClaiming] = useState(false);
+  const [claimError, setClaimError] = useState("");
+  const matchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   function updateStep1<K extends keyof Step1>(field: K, value: Step1[K]) {
     setStep1((prev) => ({ ...prev, [field]: value }));
+  }
+
+  // Debounced address-match check — fires 800ms after the last keystroke in
+  // address / city / state / zip fields.
+  useEffect(() => {
+    if (matchTimerRef.current) clearTimeout(matchTimerRef.current);
+    // Reset matches when user changes the address
+    setMatchedVenues([]);
+    setMatchDismissed(false);
+
+    const { address, city, state } = step1;
+    if (address.length < 4 || city.length < 2 || state.length < 2) return;
+
+    matchTimerRef.current = setTimeout(async () => {
+      try {
+        const params = new URLSearchParams({ address, city, state });
+        const res = await fetch(`/api/venues/match-address?${params}`);
+        if (!res.ok) return;
+        const data: MatchedVenue[] = await res.json();
+        if (data.length > 0) setMatchedVenues(data);
+      } catch {
+        // Silently ignore — we never block onboarding on a failed lookup
+      }
+    }, 800);
+
+    return () => {
+      if (matchTimerRef.current) clearTimeout(matchTimerRef.current);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step1.address, step1.city, step1.state, step1.zip]);
+
+  async function handleClaimVenue(mysqlId: number) {
+    setClaiming(true);
+    setClaimError("");
+    try {
+      const res = await fetch("/api/venues/claim-onboarding", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mysqlId }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setClaimError(data.error ?? "Claim failed. Please try again.");
+        setClaiming(false);
+        return;
+      }
+      // Refresh session so dashboard sees the new venue owner role
+      await update?.({ trigger: "update" });
+      window.location.href = "/dashboard";
+    } catch {
+      setClaimError("Network error. Please try again.");
+      setClaiming(false);
+    }
   }
 
   function updateHours(day: keyof BusinessHours, field: "open" | "close" | "closed", value: string | boolean) {
@@ -302,6 +373,80 @@ export default function OnboardingPage() {
                     />
                   </div>
                 </div>
+
+                {/* ── Address-match banner ── */}
+                {matchedVenues.length > 0 && !matchDismissed && (
+                  <div
+                    className="rounded-xl border-2 border-purple-300 p-4 space-y-3"
+                    style={{ background: "var(--bg)" }}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <Sparkles className="w-4 h-4 text-purple-600 flex-shrink-0" />
+                        <p className="text-sm font-semibold" style={{ color: "var(--fg)" }}>
+                          Is this your venue?
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setMatchDismissed(true)}
+                        className="text-neutral-400 hover:text-neutral-600"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                    <p className="text-xs" style={{ color: "var(--muted)" }}>
+                      We found a venue in our database that matches your address. Claim it to skip the rest of setup.
+                    </p>
+                    {claimError && (
+                      <p className="text-xs text-red-600">{claimError}</p>
+                    )}
+                    <div className="space-y-2">
+                      {matchedVenues.map((v) => (
+                        <div
+                          key={v.mysqlId}
+                          className="flex items-center justify-between gap-3 p-3 rounded-lg border"
+                          style={{ borderColor: "var(--border)", background: "var(--card)" }}
+                        >
+                          <div className="flex items-center gap-3 min-w-0">
+                            {v.imageUrl && (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img
+                                src={v.imageUrl}
+                                alt={v.name}
+                                className="w-10 h-10 rounded-lg object-cover flex-shrink-0"
+                              />
+                            )}
+                            <div className="min-w-0">
+                              <p className="text-sm font-semibold truncate" style={{ color: "var(--fg)" }}>
+                                {v.name}
+                              </p>
+                              <p className="text-xs truncate" style={{ color: "var(--muted)" }}>
+                                {v.address}, {v.city}, {v.state} {v.zip}
+                              </p>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            disabled={claiming}
+                            onClick={() => handleClaimVenue(v.mysqlId)}
+                            className="flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-gradient-to-r from-purple-600 to-fuchsia-500 hover:opacity-90 transition-opacity disabled:opacity-50"
+                          >
+                            {claiming ? "Claiming…" : "Claim this venue"}
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setMatchDismissed(true)}
+                      className="text-xs underline"
+                      style={{ color: "var(--muted)" }}
+                    >
+                      None of these are mine — continue with manual setup
+                    </button>
+                  </div>
+                )}
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
