@@ -101,12 +101,17 @@ function MySQLEditModal({ venue, onClose, onSaved }: { venue: MySQLVenue; onClos
     description:        venue.description ?? "",
     business_type:      venue.businessType ?? "",
     experience_category: venue.experienceCategory ?? "",
+    incentives:         venue.incentiveSummary ?? "",
     incentive_hint:     venue.incentiveHint ?? "",
     group_friendly:     venue.groupFriendly ? "Yes" : "No",
   });
-  const [incList, setIncList] = useState<Incentive[]>(
-    venue.incentives.length > 0 ? venue.incentives : []
-  );
+  // Normalize incentives_json — could be an array, a plain object, or empty
+  const [incList, setIncList] = useState<Incentive[]>(() => {
+    const raw = venue.incentives as any;
+    if (Array.isArray(raw) && raw.length > 0) return raw as Incentive[];
+    if (raw && typeof raw === "object" && !Array.isArray(raw)) return [raw as Incentive];
+    return [];
+  });
   const [saving, setSaving] = useState(false);
   const [error, setError]   = useState("");
   const set = (k: keyof typeof form) => (v: string) => setForm((f) => ({ ...f, [k]: v }));
@@ -156,9 +161,11 @@ function MySQLEditModal({ venue, onClose, onSaved }: { venue: MySQLVenue; onClos
           <FormField label="Image URL" value={form.image_url} onChange={set("image_url")} type="url" />
           <FormField label="Description" value={form.description} onChange={set("description")} textarea />
           <FormField label="Incentive hint / teaser" value={form.incentive_hint} onChange={set("incentive_hint")} />
-          {incList.length > 0 && (
-            <div>
-              <p className="text-xs font-medium mb-2" style={{ color: "var(--muted)" }}>Incentives ({incList.length})</p>
+          <div>
+            <p className="text-xs font-medium mb-2" style={{ color: "var(--muted)" }}>
+              Incentives {incList.length > 0 ? `(${incList.length} structured)` : "(plain text)"}
+            </p>
+            {incList.length > 0 ? (
               <div className="space-y-4">
                 {incList.map((inc, i) => (
                   <div key={i} className="p-3 rounded-xl border space-y-2" style={{ borderColor: "var(--border)", background: "var(--bg)" }}>
@@ -168,8 +175,10 @@ function MySQLEditModal({ venue, onClose, onSaved }: { venue: MySQLVenue; onClos
                   </div>
                 ))}
               </div>
-            </div>
-          )}
+            ) : (
+              <FormField label="" value={form.incentives} onChange={set("incentives")} textarea />
+            )}
+          </div>
           <div>
             <label className="block text-xs font-medium mb-1" style={{ color: "var(--muted)" }}>Group friendly</label>
             <select value={form.group_friendly} onChange={(e) => setForm((f) => ({ ...f, group_friendly: e.target.value }))}
