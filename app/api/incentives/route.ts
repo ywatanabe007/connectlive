@@ -82,8 +82,8 @@ export async function POST(req: Request) {
       },
     });
 
-    // Sync updated venue+incentives to mobile MySQL
-    syncVenueWithIncentives(venue.id, venue);
+    // Sync updated venue+incentives to mobile MySQL (awaited so Vercel does not kill the promise)
+    await syncVenueWithIncentives(venue.id, venue);
 
     return NextResponse.json(incentive, { status: 201 });
   } catch (err) {
