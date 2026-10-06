@@ -2,16 +2,16 @@
 
 interface StatusBadgeProps {
   startAt: string | Date;
-  endAt: string | Date;
+  endAt: string | Date | null;
 }
 
 export function StatusBadge({ startAt, endAt }: StatusBadgeProps) {
   const now = new Date();
   const start = new Date(startAt);
-  const end = new Date(endAt);
+  const end = endAt ? new Date(endAt) : null;
 
-  // Green — active right now
-  if (now >= start && now <= end) {
+  // Green — active right now (no end date = ongoing)
+  if (now >= start && (!end || now <= end)) {
     return (
       <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-500 text-white whitespace-nowrap">
         ● ACTIVE

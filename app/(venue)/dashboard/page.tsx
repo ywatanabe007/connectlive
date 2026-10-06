@@ -141,7 +141,7 @@ export default async function DashboardPage() {
                 </div>
                 <StatusBadge
                   startAt={incentive.startAt.toISOString()}
-                  endAt={incentive.endAt.toISOString()}
+                  endAt={incentive.endAt?.toISOString() ?? null}
                 />
               </div>
             ))}

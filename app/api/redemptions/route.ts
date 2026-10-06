@@ -58,7 +58,7 @@ export async function POST(req: Request) {
 
     // Check if still active
     const now = new Date();
-    if (now < incentive.startAt || now > incentive.endAt) {
+    if (now < incentive.startAt || (incentive.endAt && now > incentive.endAt)) {
       return NextResponse.json({ error: "Incentive is not currently active." }, { status: 422 });
     }
 
