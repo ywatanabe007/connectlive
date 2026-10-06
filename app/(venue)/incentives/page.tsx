@@ -88,6 +88,7 @@ type IncentiveFormState = {
   validEndTime: string;
   startAt: string;
   endAt: string;
+  noEndDate: boolean;
   maxRedemptions: string;
   terms: string;
   groupFriendly: boolean;
@@ -104,6 +105,7 @@ const EMPTY_FORM: IncentiveFormState = {
   validEndTime: "",
   startAt: "",
   endAt: "",
+  noEndDate: false,
   maxRedemptions: "",
   terms: "",
   groupFriendly: false,
@@ -132,6 +134,7 @@ function IncentiveModal({
           validEndTime: "",
           startAt: toDateOnly(initial.startAt),
           endAt: toDateOnly(initial.endAt),
+          noEndDate: !initial.endAt,
           maxRedemptions: initial.maxRedemptions ? String(initial.maxRedemptions) : "",
           terms: initial.terms ?? "",
           groupFriendly: initial.groupFriendly,
@@ -175,7 +178,7 @@ function IncentiveModal({
         category: form.category,
         validTimes,
         startAt: form.startAt ? `${form.startAt}T00:00:00` : null,
-        endAt: form.endAt ? `${form.endAt}T23:59:59` : null,
+        endAt: form.noEndDate ? null : (form.endAt ? `${form.endAt}T23:59:59` : null),
         maxRedemptions: form.maxRedemptions ? parseInt(form.maxRedemptions) : null,
         terms: form.terms || null,
         groupFriendly: form.groupFriendly,
@@ -398,16 +401,32 @@ function IncentiveModal({
               />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1.5" style={{ color: "var(--fg)" }}>
-                End date <span className="text-red-500">*</span>
-              </label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-sm font-medium" style={{ color: "var(--fg)" }}>
+                  End date{!form.noEndDate && <span className="text-red-500"> *</span>}
+                </label>
+                <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={form.noEndDate}
+                    onChange={(e) => setForm({ ...form, noEndDate: e.target.checked, endAt: e.target.checked ? "" : form.endAt })}
+                    className="rounded"
+                  />
+                  <span className="text-xs" style={{ color: "var(--muted)" }}>No end date</span>
+                </label>
+              </div>
               <input
                 type="date"
                 value={form.endAt}
                 onChange={(e) => setForm({ ...form, endAt: e.target.value })}
-                required
+                required={!form.noEndDate}
+                disabled={form.noEndDate}
                 className={inputCls}
-                style={inputStyle}
+                style={{
+                  ...inputStyle,
+                  opacity: form.noEndDate ? 0.4 : 1,
+                  cursor: form.noEndDate ? "not-allowed" : undefined,
+                }}
               />
             </div>
           </div>
@@ -630,7 +649,7 @@ export default function IncentivesPage() {
                   )}
                   <span>
                     {new Date(incentive.startAt).toLocaleDateString()} →{" "}
-                    {new Date(incentive.endAt).toLocaleDateString()}
+                    {incentive.endAt ? new Date(incentive.endAt).toLocaleDateString() : "Ongoing"}
                   </span>
                   {incentive.maxRedemptions && (
                     <span>

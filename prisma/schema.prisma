@@ -74,7 +74,7 @@ model Incentive {
   category         String          // from INCENTIVE_CATEGORIES list (8 values)
   validTimes       String?         // time restrictions e.g. "Mon-Fri 3pm-6pm"
   startAt          DateTime
-  endAt            DateTime
+  endAt            DateTime?
   maxRedemptions   Int?
   redemptionCount  Int             @default(0)
   status           IncentiveStatus @default(ACTIVE)

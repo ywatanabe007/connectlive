@@ -44,7 +44,9 @@ export async function PATCH(req: Request, { params }: RouteParams) {
   const { id: _id, venueId: _v, ...safeData } = data;
 
   if (safeData.startAt) safeData.startAt = new Date(safeData.startAt);
-  if (safeData.endAt) safeData.endAt = new Date(safeData.endAt);
+  if (safeData.endAt !== undefined) {
+    safeData.endAt = safeData.endAt ? new Date(safeData.endAt) : null;
+  }
 
   const updated = await db.incentive.update({ where: { id }, data: safeData });
 

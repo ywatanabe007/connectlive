@@ -51,14 +51,14 @@ export async function POST(req: Request) {
       maxRedemptions, terms, groupFriendly, recurrence,
     } = await req.json();
 
-    if (!title || !description || !category || !startAt || !endAt) {
+    if (!title || !description || !category || !startAt) {
       return NextResponse.json({ error: "Missing required fields." }, { status: 400 });
     }
 
     const start = new Date(startAt);
-    const end = new Date(endAt);
+    const end = endAt ? new Date(endAt) : null;
 
-    if (end <= start) {
+    if (end && end <= start) {
       return NextResponse.json(
         { error: "End date must be after start date." },
         { status: 400 }
@@ -82,7 +82,7 @@ export async function POST(req: Request) {
       },
     });
 
-    // Sync updated venue+incentives to mobile MySQL (awaited so Vercel does not kill the promise)
+    // Sync updated venue+incentives to mobile MySQL (awaited so Vercel doesn't kill the promise)
     await syncVenueWithIncentives(venue.id, venue);
 
     return NextResponse.json(incentive, { status: 201 });
