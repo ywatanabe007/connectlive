@@ -12,6 +12,8 @@ const RECURRENCE_OPTIONS = [
   { value: "MONTHLY",  label: "Monthly" },
 ];
 
+const DAYS_OF_WEEK = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
 type Incentive = {
   id: string;
   title: string;
@@ -37,12 +39,43 @@ const inputStyle = {
   color: "var(--fg)",
 };
 
-// Converts a Date/ISO string to the "datetime-local" input format (YYYY-MM-DDTHH:mm)
-function toDatetimeLocal(val: string | null | undefined): string {
+// Returns just the date portion YYYY-MM-DD from an ISO/datetime string
+function toDateOnly(val: string | null | undefined): string {
   if (!val) return "";
   const d = new Date(val);
   if (isNaN(d.getTime())) return "";
-  return d.toISOString().slice(0, 16);
+  return d.toISOString().slice(0, 10);
+}
+
+// Format a 24h "HH:MM" string to "h:MM AM/PM"
+function formatTime12(t: string): string {
+  if (!t) return "";
+  const [h, m] = t.split(":").map(Number);
+  if (isNaN(h) || isNaN(m)) return t;
+  const ampm = h >= 12 ? "PM" : "AM";
+  const h12 = h % 12 || 12;
+  return `${h12}:${String(m).padStart(2, "0")} ${ampm}`;
+}
+
+// Build the validTimes string from days + times
+function buildValidTimes(days: string[], startTime: string, endTime: string): string | null {
+  if (days.length === 0 && !startTime && !endTime) return null;
+  const dayStr = days.length > 0 ? days.join(", ") : "";
+  const timeStr =
+    startTime && endTime
+      ? `${formatTime12(startTime)}–${formatTime12(endTime)}`
+      : startTime
+      ? `from ${formatTime12(startTime)}`
+      : endTime
+      ? `until ${formatTime12(endTime)}`
+      : "";
+  return [dayStr, timeStr].filter(Boolean).join(" ") || null;
+}
+
+// Try to parse days from an existing validTimes string (best-effort)
+function parseDaysFromValidTimes(vt: string | null): string[] {
+  if (!vt) return [];
+  return DAYS_OF_WEEK.filter((d) => vt.includes(d));
 }
 
 type IncentiveFormState = {
@@ -50,7 +83,9 @@ type IncentiveFormState = {
   description: string;
   teaserText: string;
   category: string;
-  validTimes: string;
+  selectedDays: string[];
+  validStartTime: string;
+  validEndTime: string;
   startAt: string;
   endAt: string;
   maxRedemptions: string;
@@ -64,7 +99,9 @@ const EMPTY_FORM: IncentiveFormState = {
   description: "",
   teaserText: "",
   category: "",
-  validTimes: "",
+  selectedDays: [],
+  validStartTime: "",
+  validEndTime: "",
   startAt: "",
   endAt: "",
   maxRedemptions: "",
@@ -90,9 +127,11 @@ function IncentiveModal({
           description: initial.description,
           teaserText: initial.teaserText ?? "",
           category: initial.category,
-          validTimes: initial.validTimes ?? "",
-          startAt: toDatetimeLocal(initial.startAt),
-          endAt: toDatetimeLocal(initial.endAt),
+          selectedDays: parseDaysFromValidTimes(initial.validTimes),
+          validStartTime: "",
+          validEndTime: "",
+          startAt: toDateOnly(initial.startAt),
+          endAt: toDateOnly(initial.endAt),
           maxRedemptions: initial.maxRedemptions ? String(initial.maxRedemptions) : "",
           terms: initial.terms ?? "",
           groupFriendly: initial.groupFriendly,
@@ -103,23 +142,44 @@ function IncentiveModal({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  function toggleDay(day: string) {
+    setForm((prev) => ({
+      ...prev,
+      selectedDays: prev.selectedDays.includes(day)
+        ? prev.selectedDays.filter((d) => d !== day)
+        : [...prev.selectedDays, day],
+    }));
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (!form.teaserText.trim()) {
+      setError("Teaser text is required.");
+      return;
+    }
     setLoading(true);
     setError("");
 
     const url = isEdit ? `/api/incentives/${initial!.id}` : "/api/incentives";
     const method = isEdit ? "PATCH" : "POST";
 
+    const validTimes = buildValidTimes(form.selectedDays, form.validStartTime, form.validEndTime);
+
     const res = await fetch(url, {
       method,
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        ...form,
-        teaserText: form.teaserText || null,
-        validTimes: form.validTimes || null,
-        terms: form.terms || null,
+        title: form.title,
+        description: form.description,
+        teaserText: form.teaserText.trim(),
+        category: form.category,
+        validTimes,
+        startAt: form.startAt ? `${form.startAt}T00:00:00` : null,
+        endAt: form.endAt ? `${form.endAt}T23:59:59` : null,
         maxRedemptions: form.maxRedemptions ? parseInt(form.maxRedemptions) : null,
+        terms: form.terms || null,
+        groupFriendly: form.groupFriendly,
+        recurrence: form.recurrence,
       }),
     });
 
@@ -158,6 +218,7 @@ function IncentiveModal({
             </div>
           )}
 
+          {/* Title */}
           <div>
             <label className="block text-sm font-medium mb-1.5" style={{ color: "var(--fg)" }}>
               Title <span className="text-red-500">*</span>
@@ -173,9 +234,10 @@ function IncentiveModal({
             />
           </div>
 
+          {/* Teaser Text — required */}
           <div>
             <label className="block text-sm font-medium mb-1.5" style={{ color: "var(--fg)" }}>
-              Teaser text{" "}
+              Teaser text <span className="text-red-500">*</span>{" "}
               <span className="text-xs font-normal" style={{ color: "var(--muted)" }}>
                 (short preview shown in app list)
               </span>
@@ -184,6 +246,7 @@ function IncentiveModal({
               type="text"
               value={form.teaserText}
               onChange={(e) => setForm({ ...form, teaserText: e.target.value })}
+              required
               placeholder="50% off apps during happy hour"
               maxLength={100}
               className={inputCls}
@@ -191,6 +254,7 @@ function IncentiveModal({
             />
           </div>
 
+          {/* Description */}
           <div>
             <label className="block text-sm font-medium mb-1.5" style={{ color: "var(--fg)" }}>
               Description <span className="text-red-500">*</span>
@@ -206,6 +270,7 @@ function IncentiveModal({
             />
           </div>
 
+          {/* Category + Recurrence */}
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium mb-1.5" style={{ color: "var(--fg)" }}>
@@ -242,30 +307,89 @@ function IncentiveModal({
             </div>
           </div>
 
+          {/* Available Days */}
           <div>
-            <label className="block text-sm font-medium mb-1.5" style={{ color: "var(--fg)" }}>
-              Valid times{" "}
+            <label className="block text-sm font-medium mb-2" style={{ color: "var(--fg)" }}>
+              Available days{" "}
               <span className="text-xs font-normal" style={{ color: "var(--muted)" }}>
-                (optional, e.g. Mon–Fri 3pm–6pm)
+                (optional)
               </span>
             </label>
-            <input
-              type="text"
-              value={form.validTimes}
-              onChange={(e) => setForm({ ...form, validTimes: e.target.value })}
-              placeholder="Mon–Fri 3pm–6pm"
-              className={inputCls}
-              style={inputStyle}
-            />
+            <div className="flex flex-wrap gap-2">
+              {DAYS_OF_WEEK.map((day) => {
+                const active = form.selectedDays.includes(day);
+                return (
+                  <button
+                    key={day}
+                    type="button"
+                    onClick={() => toggleDay(day)}
+                    className="px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all"
+                    style={{
+                      background: active ? "var(--purple-600, #9333ea)" : "var(--bg)",
+                      borderColor: active ? "transparent" : "var(--border)",
+                      color: active ? "#fff" : "var(--fg)",
+                    }}
+                  >
+                    {day}
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
+          {/* Available Hours */}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-sm font-medium mb-1.5" style={{ color: "var(--fg)" }}>
-                Start date & time <span className="text-red-500">*</span>
+                Start time{" "}
+                <span className="text-xs font-normal" style={{ color: "var(--muted)" }}>
+                  (optional)
+                </span>
               </label>
               <input
-                type="datetime-local"
+                type="time"
+                value={form.validStartTime}
+                onChange={(e) => setForm({ ...form, validStartTime: e.target.value })}
+                className={inputCls}
+                style={inputStyle}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1.5" style={{ color: "var(--fg)" }}>
+                End time{" "}
+                <span className="text-xs font-normal" style={{ color: "var(--muted)" }}>
+                  (optional)
+                </span>
+              </label>
+              <input
+                type="time"
+                value={form.validEndTime}
+                onChange={(e) => setForm({ ...form, validEndTime: e.target.value })}
+                className={inputCls}
+                style={inputStyle}
+              />
+            </div>
+          </div>
+
+          {/* Preview of composed validTimes */}
+          {(form.selectedDays.length > 0 || form.validStartTime || form.validEndTime) && (
+            <div
+              className="px-3 py-2 rounded-lg text-xs"
+              style={{ background: "var(--border)", color: "var(--muted)" }}
+            >
+              <span className="font-medium">Valid times: </span>
+              {buildValidTimes(form.selectedDays, form.validStartTime, form.validEndTime) ?? "—"}
+            </div>
+          )}
+
+          {/* Campaign dates */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-medium mb-1.5" style={{ color: "var(--fg)" }}>
+                Start date <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="date"
                 value={form.startAt}
                 onChange={(e) => setForm({ ...form, startAt: e.target.value })}
                 required
@@ -275,10 +399,10 @@ function IncentiveModal({
             </div>
             <div>
               <label className="block text-sm font-medium mb-1.5" style={{ color: "var(--fg)" }}>
-                End date & time <span className="text-red-500">*</span>
+                End date <span className="text-red-500">*</span>
               </label>
               <input
-                type="datetime-local"
+                type="date"
                 value={form.endAt}
                 onChange={(e) => setForm({ ...form, endAt: e.target.value })}
                 required
@@ -288,6 +412,7 @@ function IncentiveModal({
             </div>
           </div>
 
+          {/* Max Redemptions */}
           <div>
             <label className="block text-sm font-medium mb-1.5" style={{ color: "var(--fg)" }}>
               Max redemptions{" "}
@@ -306,6 +431,7 @@ function IncentiveModal({
             />
           </div>
 
+          {/* Terms */}
           <div>
             <label className="block text-sm font-medium mb-1.5" style={{ color: "var(--fg)" }}>
               Terms & conditions{" "}
