@@ -11,7 +11,7 @@ export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const q      = searchParams.get("q")?.trim() ?? "";
   const table  = searchParams.get("table") === "prod" ? PROD_TABLE : STAGING_TABLE;
-  const limit  = Math.min(parseInt(searchParams.get("limit") ?? "50"), 200);
+  const limit  = Math.min(parseInt(searchParams.get("limit") ?? "500"), 1000);
 
   if (q.length < 2) {
     return NextResponse.json({ rows: [], total: 0 });
@@ -21,6 +21,14 @@ export async function GET(req: Request) {
     const pool = getPool();
 
     const term = `%${q}%`;
+    const whereClause = `WHERE event_title LIKE ? OR location_name LIKE ? OR address LIKE ? OR city LIKE ?`;
+    const termParams = [term, term, term, term];
+
+    const [[{ total }]] = await pool.execute<any[]>(
+      `SELECT COUNT(*) AS total FROM \`${table}\` ${whereClause}`,
+      termParams
+    );
+
     const [rows] = await pool.execute<any[]>(
       `SELECT
          id, source, source_event_id,
@@ -31,16 +39,13 @@ export async function GET(req: Request) {
          latitude, longitude,
          date_updated
        FROM \`${table}\`
-       WHERE event_title LIKE ?
-          OR location_name LIKE ?
-          OR address LIKE ?
-          OR city LIKE ?
+       ${whereClause}
        ORDER BY date_updated DESC
        LIMIT ?`,
-      [term, term, term, term, limit]
+      [...termParams, limit]
     );
 
-    return NextResponse.json({ rows, total: rows.length, table });
+    return NextResponse.json({ rows, total, table });
   } catch (err: any) {
     console.error("[mysql-raw] Error:", err);
     return NextResponse.json({ error: err.message ?? "Query failed." }, { status: 500 });
