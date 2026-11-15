@@ -6,12 +6,13 @@ import { useSession } from "next-auth/react";
 import { Building2, FileText, CheckCircle2, MapPin, Clock, Sparkles, X } from "lucide-react";
 import {
   BUSINESS_TYPES,
-  EXPERIENCE_CATEGORIES,
   US_TIMEZONES,
   DEFAULT_BUSINESS_HOURS,
+  suggestedCategories,
   DAYS_OF_WEEK,
   type BusinessHours,
 } from "@/lib/constants";
+import ExperienceCategorySelect from "@/components/ExperienceCategorySelect";
 
 type Step1 = {
   name: string;
@@ -288,7 +289,17 @@ export default function OnboardingPage() {
                     </label>
                     <select
                       value={step1.businessType}
-                      onChange={(e) => updateStep1("businessType", e.target.value)}
+                      onChange={(e) => {
+                        const type = e.target.value;
+                        setStep1((prev) => ({
+                          ...prev,
+                          businessType: type,
+                          // Clear a category that doesn't fit the new business type.
+                          experienceCategory: suggestedCategories(type).includes(prev.experienceCategory)
+                            ? prev.experienceCategory
+                            : "",
+                        }));
+                      }}
                       className={inputCls}
                       style={inputStyle}
                     >
@@ -302,17 +313,13 @@ export default function OnboardingPage() {
                     <label className="block text-sm font-medium mb-1.5" style={{ color: "var(--fg)" }}>
                       Experience category <span className="text-red-500">*</span>
                     </label>
-                    <select
+                    <ExperienceCategorySelect
+                      businessType={step1.businessType}
                       value={step1.experienceCategory}
-                      onChange={(e) => updateStep1("experienceCategory", e.target.value)}
+                      onChange={(v) => updateStep1("experienceCategory", v)}
                       className={inputCls}
                       style={inputStyle}
-                    >
-                      <option value="">Select category…</option>
-                      {EXPERIENCE_CATEGORIES.map((c) => (
-                        <option key={c} value={c}>{c}</option>
-                      ))}
-                    </select>
+                    />
                   </div>
                 </div>
 

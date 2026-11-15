@@ -41,7 +41,56 @@ export const EXPERIENCE_CATEGORIES = [
   "Breakfast",
   "Brunch",
   "Wine Bar",
+  // Non-food categories (added Nov 2026) — the ConnectLive app must recognize these too.
+  "Sports & Games",
+  "Watch Party",
+  "Bowling",
+  "Arcade & Amusement",
+  "Movies",
+  "Museum & Art",
+  "Nightlife",
+  "Comedy & Shows",
+  "Casino",
+  "Spa & Wellness",
+  "Desserts",
+  "Snacks & Convenience",
 ] as const;
+
+export type BusinessType = (typeof BUSINESS_TYPES)[number];
+export type ExperienceCategory = (typeof EXPERIENCE_CATEGORIES)[number];
+
+/** Experience categories that fit each business type, most relevant first. */
+export const CATEGORIES_BY_BUSINESS_TYPE: Record<BusinessType, readonly ExperienceCategory[]> = {
+  "Restaurants & Food": ["Restaurant", "Happy Hour", "Pizza", "Burgers", "Mexican", "Ramen", "BBQ", "Seafood", "Sushi", "Breakfast", "Brunch", "Desserts"],
+  "Bar": ["Bar", "Happy Hour", "Wine Bar", "Live Music", "Nightlife", "Watch Party"],
+  "Amusement": ["Arcade & Amusement", "Sports & Games", "Bowling"],
+  "Museum & Gallery": ["Museum & Art"],
+  "Convenience Store": ["Snacks & Convenience", "Coffee"],
+  "Casino": ["Casino", "Nightlife", "Live Music", "Comedy & Shows", "Restaurant"],
+  "Movie Theater": ["Movies"],
+  "Sports": ["Sports & Games", "Watch Party", "Bowling", "Arcade & Amusement"],
+  "Cafe": ["Coffee", "Breakfast", "Brunch", "Desserts"],
+  "Venue": ["Live Music", "Comedy & Shows", "Nightlife", "Sports & Games", "Museum & Art"],
+  "Nightclub": ["Nightlife", "Bar", "Live Music"],
+  "Live Music Venue": ["Live Music", "Nightlife", "Bar"],
+  "Spa": ["Spa & Wellness"],
+  "Bar & Grill": ["Bar", "Restaurant", "Happy Hour", "Burgers", "BBQ", "Watch Party"],
+  "Bowling": ["Bowling", "Sports & Games", "Arcade & Amusement", "Bar"],
+  "Dessert": ["Desserts", "Coffee"],
+  "Entertainment": ["Arcade & Amusement", "Comedy & Shows", "Live Music", "Movies", "Sports & Games", "Nightlife"],
+  "Live Show": ["Comedy & Shows", "Live Music"],
+  "Oceanfront Bar": ["Bar", "Happy Hour", "Seafood", "Live Music"],
+  "Pizza Restaurant": ["Pizza", "Restaurant", "Happy Hour"],
+  "Restaurant & Lounge": ["Restaurant", "Bar", "Happy Hour", "Nightlife"],
+  "Rooftop Bar": ["Bar", "Happy Hour", "Nightlife", "Wine Bar"],
+  "Sports Bar": ["Watch Party", "Bar", "Happy Hour", "Burgers", "Sports & Games"],
+  "Tequila Bar": ["Bar", "Happy Hour", "Mexican", "Nightlife"],
+};
+
+/** Suggested categories for a business type (empty if the type is unknown or not set). */
+export function suggestedCategories(businessType: string | null | undefined): readonly string[] {
+  return (businessType && CATEGORIES_BY_BUSINESS_TYPE[businessType as BusinessType]) || [];
+}
 
 export const INCENTIVE_CATEGORIES = [
   "Happy Hour",

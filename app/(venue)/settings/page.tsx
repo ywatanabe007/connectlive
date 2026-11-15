@@ -4,13 +4,14 @@ import { useState, useEffect } from "react";
 import { Save, Building2, MapPin, Phone, Clock, Image, Upload, X } from "lucide-react";
 import {
   BUSINESS_TYPES,
-  EXPERIENCE_CATEGORIES,
   US_TIMEZONES,
+  suggestedCategories,
   DAYS_OF_WEEK,
   DEFAULT_BUSINESS_HOURS,
   type BusinessHours,
   type DayOfWeek,
 } from "@/lib/constants";
+import ExperienceCategorySelect from "@/components/ExperienceCategorySelect";
 
 type VenueData = {
   id: string;
@@ -278,7 +279,17 @@ export default function SettingsPage() {
                 </label>
                 <select
                   value={form.businessType ?? ""}
-                  onChange={(e) => setForm({ ...form, businessType: e.target.value })}
+                  onChange={(e) => {
+                    const type = e.target.value;
+                    setForm({
+                      ...form,
+                      businessType: type,
+                      // Clear a category that doesn't fit the new business type.
+                      experienceCategory: suggestedCategories(type).includes(form.experienceCategory ?? "")
+                        ? form.experienceCategory
+                        : "",
+                    });
+                  }}
                   className={inputCls}
                   style={inputStyle}
                 >
@@ -290,15 +301,13 @@ export default function SettingsPage() {
                 <label className="block text-sm font-medium mb-1.5" style={{ color: "var(--fg)" }}>
                   Experience category
                 </label>
-                <select
+                <ExperienceCategorySelect
+                  businessType={form.businessType}
                   value={form.experienceCategory ?? ""}
-                  onChange={(e) => setForm({ ...form, experienceCategory: e.target.value })}
+                  onChange={(v) => setForm({ ...form, experienceCategory: v })}
                   className={inputCls}
                   style={inputStyle}
-                >
-                  <option value="">Select category…</option>
-                  {EXPERIENCE_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
-                </select>
+                />
               </div>
             </div>
 
