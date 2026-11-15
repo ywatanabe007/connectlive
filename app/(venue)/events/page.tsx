@@ -1,17 +1,8 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { eventTypesFor, eventCategoriesFor } from "@/lib/constants";
 import { Plus, Calendar, Trash2, X, Pencil, Clock, ExternalLink } from "lucide-react";
-
-const EVENT_TYPES = [
-  "Concert", "Comedy Night", "Happy Hour", "Live Music", "DJ Night",
-  "Trivia Night", "Open Mic", "Sports Viewing", "Wine Tasting", "Food Festival",
-  "Art Show", "Networking", "Private Event", "Holiday Event", "Other",
-];
-
-const EVENT_CATEGORIES = [
-  "Arts & Theatre", "Film", "Misc.", "Hobby", "Music", "Sports",
-];
 
 type Event = {
   id: string;
@@ -103,6 +94,17 @@ function EventModal({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  // Load the venue's business type so we only offer relevant event types/categories.
+  const [businessType, setBusinessType] = useState<string | null>(null);
+  useEffect(() => {
+    fetch("/api/venues/mine")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((v) => setBusinessType(v?.businessType ?? null))
+      .catch(() => {});
+  }, []);
+  const eventTypes = eventTypesFor(businessType);
+  const eventCategories = eventCategoriesFor(businessType);
+
   function set<K extends keyof EventFormState>(field: K, value: EventFormState[K]) {
     setForm((prev) => ({ ...prev, [field]: value }));
   }
@@ -172,14 +174,16 @@ function EventModal({
               <label className="block text-sm font-medium mb-1.5" style={{ color: "var(--fg)" }}>Event type</label>
               <select value={form.eventType} onChange={(e) => set("eventType", e.target.value)} className={inputCls} style={inputStyle}>
                 <option value="">Select type…</option>
-                {EVENT_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+                {form.eventType && !eventTypes.includes(form.eventType) && <option value={form.eventType}>{form.eventType}</option>}
+                {eventTypes.map((t) => <option key={t} value={t}>{t}</option>)}
               </select>
             </div>
             <div>
               <label className="block text-sm font-medium mb-1.5" style={{ color: "var(--fg)" }}>Category</label>
               <select value={form.category} onChange={(e) => set("category", e.target.value)} className={inputCls} style={inputStyle}>
                 <option value="">Select category…</option>
-                {EVENT_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                {form.category && !eventCategories.includes(form.category) && <option value={form.category}>{form.category}</option>}
+                {eventCategories.map((c) => <option key={c} value={c}>{c}</option>)}
               </select>
             </div>
           </div>

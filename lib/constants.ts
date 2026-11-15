@@ -150,6 +150,94 @@ export function suggestedIncentiveCategories(businessType: string | null | undef
   return (businessType && INCENTIVES_BY_BUSINESS_TYPE[businessType as BusinessType]) || [];
 }
 
+export const EVENT_TYPES = [
+  "Concert", "Comedy Night", "Happy Hour", "Live Music", "DJ Night",
+  "Trivia Night", "Open Mic", "Sports Viewing", "Wine Tasting", "Food Festival",
+  "Art Show", "Networking", "Private Event", "Holiday Event",
+  // Added Nov 2026 for sports / entertainment venues — the ConnectLive app must recognize these too.
+  "Game / Match", "Tournament", "League Night", "Fan Event", "Family Event",
+  "Movie Screening", "Exhibition", "Class / Workshop",
+  "Other",
+] as const;
+
+export const EVENT_CATEGORIES = ["Arts & Theatre", "Film", "Misc.", "Hobby", "Music", "Sports"] as const;
+
+export type EventType = (typeof EVENT_TYPES)[number];
+export type EventCategory = (typeof EVENT_CATEGORIES)[number];
+
+// Every venue can always host these.
+const ALWAYS_EVENTS: readonly EventType[] = ["Private Event", "Holiday Event", "Other"];
+const BAR_EVENTS: readonly EventType[] = ["Happy Hour", "Live Music", "DJ Night", "Trivia Night", "Open Mic", "Sports Viewing", "Wine Tasting", "Comedy Night", ...ALWAYS_EVENTS];
+const FOOD_EVENTS: readonly EventType[] = ["Happy Hour", "Live Music", "Trivia Night", "Wine Tasting", "Food Festival", "Family Event", ...ALWAYS_EVENTS];
+const CAFE_EVENTS: readonly EventType[] = ["Live Music", "Open Mic", "Art Show", "Class / Workshop", "Networking", ...ALWAYS_EVENTS];
+const SHOW_EVENTS: readonly EventType[] = ["Concert", "Comedy Night", "Live Music", "Open Mic", "Art Show", "Networking", ...ALWAYS_EVENTS];
+
+/** Event types that fit each business type, most relevant first. */
+export const EVENT_TYPES_BY_BUSINESS_TYPE: Record<BusinessType, readonly EventType[]> = {
+  "Restaurants & Food": FOOD_EVENTS,
+  "Pizza Restaurant": FOOD_EVENTS,
+  "Bar": BAR_EVENTS,
+  "Bar & Grill": BAR_EVENTS,
+  "Oceanfront Bar": BAR_EVENTS,
+  "Rooftop Bar": BAR_EVENTS,
+  "Tequila Bar": BAR_EVENTS,
+  "Restaurant & Lounge": BAR_EVENTS,
+  "Sports": ["Game / Match", "Tournament", "Sports Viewing", "Fan Event", "Family Event", "League Night", ...ALWAYS_EVENTS],
+  "Sports Bar": ["Sports Viewing", "Fan Event", "Trivia Night", "Happy Hour", "Live Music", "DJ Night", ...ALWAYS_EVENTS],
+  "Bowling": ["League Night", "Tournament", "Family Event", "DJ Night", ...ALWAYS_EVENTS],
+  "Amusement": ["Family Event", "Tournament", ...ALWAYS_EVENTS],
+  "Entertainment": ["Family Event", "Tournament", "Comedy Night", "Live Music", "DJ Night", "Trivia Night", ...ALWAYS_EVENTS],
+  "Movie Theater": ["Movie Screening", "Family Event", ...ALWAYS_EVENTS],
+  "Museum & Gallery": ["Exhibition", "Art Show", "Class / Workshop", "Family Event", "Networking", ...ALWAYS_EVENTS],
+  "Live Music Venue": ["Concert", "Live Music", "DJ Night", "Open Mic", "Comedy Night", ...ALWAYS_EVENTS],
+  "Live Show": SHOW_EVENTS,
+  "Venue": SHOW_EVENTS,
+  "Nightclub": ["DJ Night", "Live Music", "Concert", ...ALWAYS_EVENTS],
+  "Casino": ["Concert", "Comedy Night", "Live Music", "DJ Night", "Tournament", ...ALWAYS_EVENTS],
+  "Spa": ["Class / Workshop", ...ALWAYS_EVENTS],
+  "Cafe": CAFE_EVENTS,
+  "Dessert": CAFE_EVENTS,
+  "Convenience Store": ALWAYS_EVENTS,
+};
+
+/** Event categories that fit each business type. */
+export const EVENT_CATEGORIES_BY_BUSINESS_TYPE: Record<BusinessType, readonly EventCategory[]> = {
+  "Restaurants & Food": ["Music", "Hobby", "Misc."],
+  "Pizza Restaurant": ["Music", "Hobby", "Misc."],
+  "Cafe": ["Music", "Arts & Theatre", "Hobby", "Misc."],
+  "Dessert": ["Music", "Hobby", "Misc."],
+  "Bar": ["Music", "Sports", "Arts & Theatre", "Misc."],
+  "Bar & Grill": ["Music", "Sports", "Arts & Theatre", "Misc."],
+  "Oceanfront Bar": ["Music", "Sports", "Arts & Theatre", "Misc."],
+  "Rooftop Bar": ["Music", "Sports", "Arts & Theatre", "Misc."],
+  "Tequila Bar": ["Music", "Sports", "Arts & Theatre", "Misc."],
+  "Restaurant & Lounge": ["Music", "Sports", "Arts & Theatre", "Misc."],
+  "Sports": ["Sports", "Misc."],
+  "Sports Bar": ["Sports", "Music", "Misc."],
+  "Bowling": ["Sports", "Hobby", "Misc."],
+  "Amusement": ["Sports", "Hobby", "Misc."],
+  "Entertainment": ["Music", "Arts & Theatre", "Film", "Sports", "Hobby", "Misc."],
+  "Movie Theater": ["Film", "Misc."],
+  "Museum & Gallery": ["Arts & Theatre", "Hobby", "Misc."],
+  "Live Music Venue": ["Music", "Misc."],
+  "Nightclub": ["Music", "Misc."],
+  "Live Show": ["Music", "Arts & Theatre", "Film", "Misc."],
+  "Venue": ["Music", "Arts & Theatre", "Film", "Sports", "Misc."],
+  "Casino": ["Music", "Arts & Theatre", "Misc."],
+  "Spa": ["Hobby", "Misc."],
+  "Convenience Store": ["Misc."],
+};
+
+/** Event types for a business type (full list if unknown or not set). */
+export function eventTypesFor(businessType: string | null | undefined): readonly string[] {
+  return (businessType && EVENT_TYPES_BY_BUSINESS_TYPE[businessType as BusinessType]) || EVENT_TYPES;
+}
+
+/** Event categories for a business type (full list if unknown or not set). */
+export function eventCategoriesFor(businessType: string | null | undefined): readonly string[] {
+  return (businessType && EVENT_CATEGORIES_BY_BUSINESS_TYPE[businessType as BusinessType]) || EVENT_CATEGORIES;
+}
+
 export const US_TIMEZONES = [
   { label: "Eastern Time (ET)", value: "America/New_York" },
   { label: "Central Time (CT)", value: "America/Chicago" },
