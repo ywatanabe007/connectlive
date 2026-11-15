@@ -100,8 +100,55 @@ export const INCENTIVE_CATEGORIES = [
   "Group Booking",
   "Matinee Deal",
   "Early Entry",
+  // Added Nov 2026 for sports / entertainment venues — the ConnectLive app must recognize these too.
+  "Game Day Special",
+  "Watch Party",
+  "Family Deal",
+  "Bundle Deal",
+  "Membership & Passes",
+  "Food & Drink Special",
   "No Incentive",
 ] as const;
+
+export type IncentiveCategory = (typeof INCENTIVE_CATEGORIES)[number];
+
+const BAR_INCENTIVES: readonly IncentiveCategory[] = ["Happy Hour", "Food & Drink Special", "Live Music", "Discount", "Group Booking"];
+const FOOD_INCENTIVES: readonly IncentiveCategory[] = ["Happy Hour", "Food & Drink Special", "Discount", "Family Deal", "Group Booking", "Bundle Deal"];
+const SHOW_INCENTIVES: readonly IncentiveCategory[] = ["Early Entry", "Live Music", "Group Booking", "Bundle Deal", "Discount", "Food & Drink Special"];
+const FAMILY_FUN_INCENTIVES: readonly IncentiveCategory[] = ["Family Deal", "Bundle Deal", "Group Booking", "Membership & Passes", "Discount", "Early Entry"];
+
+/** Incentive (deal) types that fit each business type, most relevant first. */
+export const INCENTIVES_BY_BUSINESS_TYPE: Record<BusinessType, readonly IncentiveCategory[]> = {
+  "Restaurants & Food": FOOD_INCENTIVES,
+  "Pizza Restaurant": FOOD_INCENTIVES,
+  "Bar": [...BAR_INCENTIVES, "Watch Party"],
+  "Bar & Grill": [...BAR_INCENTIVES, "Watch Party"],
+  "Oceanfront Bar": BAR_INCENTIVES,
+  "Rooftop Bar": BAR_INCENTIVES,
+  "Tequila Bar": BAR_INCENTIVES,
+  "Restaurant & Lounge": BAR_INCENTIVES,
+  "Sports": ["Game Day Special", "Watch Party", "Group Booking", "Family Deal", "Discount", "Bundle Deal", "Membership & Passes", "Early Entry", "Food & Drink Special", "Free"],
+  "Sports Bar": ["Watch Party", "Game Day Special", "Happy Hour", "Food & Drink Special", "Group Booking", "Discount"],
+  "Bowling": ["Group Booking", "Family Deal", "Bundle Deal", "Discount", "Happy Hour", "Membership & Passes"],
+  "Amusement": FAMILY_FUN_INCENTIVES,
+  "Entertainment": [...FAMILY_FUN_INCENTIVES, "Live Music"],
+  "Movie Theater": ["Matinee Deal", "Family Deal", "Bundle Deal", "Membership & Passes", "Discount"],
+  "Museum & Gallery": ["Free", "Family Deal", "Membership & Passes", "Group Booking", "Discount", "Early Entry"],
+  "Live Music Venue": SHOW_INCENTIVES,
+  "Live Show": SHOW_INCENTIVES,
+  "Venue": SHOW_INCENTIVES,
+  "Nightclub": ["Early Entry", "Free", "Group Booking", "Happy Hour", "Live Music"],
+  "Casino": ["Food & Drink Special", "Free", "Membership & Passes", "Live Music", "Discount"],
+  "Spa": ["Discount", "Bundle Deal", "Membership & Passes", "Group Booking"],
+  "Cafe": ["Discount", "Food & Drink Special", "Bundle Deal", "Free"],
+  "Dessert": ["Discount", "Food & Drink Special", "Bundle Deal", "Free"],
+  "Convenience Store": ["Discount", "Bundle Deal", "Free"],
+};
+
+/** Suggested incentive types for a business type (empty if unknown or not set). */
+export function suggestedIncentiveCategories(businessType: string | null | undefined): readonly string[] {
+  return (businessType && INCENTIVES_BY_BUSINESS_TYPE[businessType as BusinessType]) || [];
+}
 
 export const US_TIMEZONES = [
   { label: "Eastern Time (ET)", value: "America/New_York" },

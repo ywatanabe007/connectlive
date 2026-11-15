@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Plus, Zap, X, Trash2, Pencil, RefreshCw } from "lucide-react";
 import { StatusBadge } from "@/components/StatusBadge";
-import { INCENTIVE_CATEGORIES } from "@/lib/constants";
+import { INCENTIVE_CATEGORIES, suggestedIncentiveCategories } from "@/lib/constants";
 
 const RECURRENCE_OPTIONS = [
   { value: "ONE_TIME", label: "One-time" },
@@ -122,6 +122,16 @@ function IncentiveModal({
   onSaved: () => void;
 }) {
   const isEdit = !!initial;
+
+  // Load the venue's business type so we can suggest matching incentive types.
+  const [businessType, setBusinessType] = useState<string | null>(null);
+  useEffect(() => {
+    fetch("/api/venues/mine")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((v) => setBusinessType(v?.businessType ?? null))
+      .catch(() => {});
+  }, []);
+  const suggestedTypes = suggestedIncentiveCategories(businessType);
   const [form, setForm] = useState<IncentiveFormState>(
     initial
       ? {
@@ -287,7 +297,12 @@ function IncentiveModal({
                 style={inputStyle}
               >
                 <option value="">Select…</option>
-                {INCENTIVE_CATEGORIES.map((c) => (
+                {form.category && !(suggestedTypes.length > 0 ? suggestedTypes : (INCENTIVE_CATEGORIES as readonly string[])).includes(form.category) && (
+                  <option value={form.category}>{form.category}</option>
+                )}
+                {/* Only the incentive types relevant to this venue's business type
+                    (full list if the venue has no business type set). */}
+                {(suggestedTypes.length > 0 ? suggestedTypes : INCENTIVE_CATEGORIES).map((c) => (
                   <option key={c} value={c}>{c}</option>
                 ))}
               </select>

@@ -11,31 +11,20 @@ type Props = {
 };
 
 /**
- * Experience category dropdown that puts the categories matching the venue's
- * business type first, with every other category still available below.
+ * Experience category dropdown that shows only the categories relevant to the
+ * venue's business type (the full list if no business type is chosen yet).
  */
 export default function ExperienceCategorySelect({ businessType, value, onChange, className, style }: Props) {
   const suggested = suggestedCategories(businessType);
-  const others = EXPERIENCE_CATEGORIES.filter((c) => !suggested.includes(c));
-  // Keep a saved value visible even if it isn't in our list (e.g. imported from the venue database).
-  const isUnknown = value && !(EXPERIENCE_CATEGORIES as readonly string[]).includes(value);
+  const options: readonly string[] = suggested.length > 0 ? suggested : EXPERIENCE_CATEGORIES;
+  // Keep a saved value visible even if it isn't one of the options (e.g. imported from the venue database).
+  const showSaved = value && !options.includes(value);
 
   return (
     <select value={value} onChange={(e) => onChange(e.target.value)} className={className} style={style}>
       <option value="">{businessType ? "Select category…" : "Select a business type first…"}</option>
-      {isUnknown && <option value={value}>{value}</option>}
-      {suggested.length > 0 ? (
-        <>
-          <optgroup label={`Suggested for ${businessType}`}>
-            {suggested.map((c) => <option key={c} value={c}>{c}</option>)}
-          </optgroup>
-          <optgroup label="Other categories">
-            {others.map((c) => <option key={c} value={c}>{c}</option>)}
-          </optgroup>
-        </>
-      ) : (
-        EXPERIENCE_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)
-      )}
+      {showSaved && <option value={value}>{value}</option>}
+      {options.map((c) => <option key={c} value={c}>{c}</option>)}
     </select>
   );
 }
