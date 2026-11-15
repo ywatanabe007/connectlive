@@ -5,6 +5,7 @@ import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Search, CheckCircle2, X } from "lucide-react";
+import PasswordInput from "@/components/PasswordInput";
 
 type ClaimableVenue = {
   mysqlId: number;
@@ -169,8 +170,7 @@ function SignupForm() {
 
             <div>
               <label className="block text-sm font-medium mb-1.5" style={{ color: "var(--fg)" }}>Password</label>
-              <input
-                type="password"
+              <PasswordInput
                 value={form.password}
                 onChange={(e) => setForm({ ...form, password: e.target.value })}
                 required

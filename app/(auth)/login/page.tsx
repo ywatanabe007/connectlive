@@ -4,6 +4,7 @@ import { Suspense, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { signIn } from "next-auth/react";
 import Link from "next/link";
+import PasswordInput from "@/components/PasswordInput";
 
 function Logo() {
   return (
@@ -22,6 +23,7 @@ function LoginForm() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const callbackUrl = searchParams.get("callbackUrl") || "/dashboard";
+  const justReset = searchParams.get("reset") === "success";
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -63,6 +65,11 @@ function LoginForm() {
           className="rounded-2xl p-8 border shadow-sm"
           style={{ background: "var(--card)", borderColor: "var(--border)" }}
         >
+          {justReset && !error && (
+            <div className="mb-5 px-4 py-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm">
+              Your password has been reset. Sign in with your new password.
+            </div>
+          )}
           {error && (
             <div className="mb-5 px-4 py-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm">
               {error}
@@ -94,14 +101,18 @@ function LoginForm() {
             </div>
 
             <div>
-              <label
-                className="block text-sm font-medium mb-1.5"
-                style={{ color: "var(--fg)" }}
-              >
-                Password
-              </label>
-              <input
-                type="password"
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-sm font-medium" style={{ color: "var(--fg)" }}>
+                  Password
+                </label>
+                <Link
+                  href="/forgot-password"
+                  className="text-xs font-semibold text-purple-600 hover:text-purple-700"
+                >
+                  Forgot password?
+                </Link>
+              </div>
+              <PasswordInput
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
