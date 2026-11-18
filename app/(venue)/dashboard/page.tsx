@@ -30,7 +30,15 @@ export default async function DashboardPage() {
     },
   });
 
-  if (!venue) redirect("/onboarding");
+  if (!venue) {
+    // Self-heal accounts left as VENUE_OWNER without a venue (e.g. venue deleted
+    // by an admin). Otherwise /onboarding sends them straight back here — a loop.
+    await db.user.updateMany({
+      where: { id: session.user.id, role: "VENUE_OWNER" },
+      data: { role: "USER" },
+    });
+    redirect("/onboarding");
+  }
 
   const activeIncentivesCount = venue.incentives.length;
   const totalRedemptions = venue.incentives.reduce(

@@ -37,7 +37,9 @@ export default auth((req) => {
   // (The session check above already handles unauthenticated users.)
 
   if (pathname.startsWith("/admin") && role !== "ADMIN") {
-    return NextResponse.redirect(new URL("/login", req.url));
+    // Signed in but not an admin: send to "/" (which routes by role) rather than
+    // /login, which looked like a failed sign-in.
+    return NextResponse.redirect(new URL("/", req.url));
   }
 
   return NextResponse.next();

@@ -60,6 +60,12 @@ export async function DELETE(_req: Request, { params }: RouteParams) {
 
   await db.venue.delete({ where: { id } });
 
+  // The owner no longer has a venue — drop them back to USER so they go through
+  // onboarding instead of bouncing between /dashboard and /onboarding forever.
+  await db.user.update({ where: { id: venue.ownerId }, data: { role: "USER" } }).catch((err) => {
+    console.error("[admin/venues DELETE] Failed to reset owner role:", err);
+  });
+
   // Reset the MySQL row so the venue can be claimed again
   try {
     const pool = getPool();
